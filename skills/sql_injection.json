@@ -1,0 +1,8 @@
+{
+  "name": "sql_injection",
+  "display": "SQL注入分析",
+  "category": "hacker",
+  "triggers": ["SQL注入", "sql injection", "sqli", "报错注入", "盲注", "union注入", "延时注入", "sqlmap"],
+  "tools": ["sqli_detect", "sqli_exploit", "sqli_payload"],
+  "knowledge": ["sqli_guide", "sqli_cheatsheet"]
+}

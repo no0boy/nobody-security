@@ -1,0 +1,6 @@
+provider.json
+*.db
+chroma_data/
+__pycache__/
+uploads/
+.env

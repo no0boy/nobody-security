@@ -1,0 +1,8 @@
+{
+  "name": "cve_lookup",
+  "display": "CVE查询",
+  "category": "tools",
+  "triggers": ["CVE", "漏洞编号", "CVSS", "漏洞详情"],
+  "tools": ["search_cve", "get_cve_detail"],
+  "knowledge": ["cve_basics"]
+}
