@@ -27,7 +27,13 @@ def _mem_db():
     return conn
 
 class Memory:
-    """👤个人档案 ❤️偏好 📚学习 💼经验 🎯目标"""
+    """
+    五维记忆 — 按用户隔离
+
+    游客(guest) → 不写入任何记忆，每次对话匿名
+    注册用户     → 独立记忆空间，互不可见
+    nobody      → 主人，同时可维护公共知识层(knowledge/public/)
+    """
 
     @staticmethod
     def set(user_id, mem_type, key, value):

@@ -1,4 +1,11 @@
-"""Nobody 聊天接口"""
+"""
+Nobody 聊天接口
+
+权限规则：
+  游客(guest)  → 只能搜索公共知识，不存记忆，不可修改任何数据
+  注册用户     → 搜索公共知识 + 自己的私人学习记忆（互不可见）
+  nobody(主人) → 唯一可修改公共知识层的账号
+"""
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
