@@ -1,158 +1,328 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nobody — Chat</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0a0a0a; color: #e0e0e0; font-family: 'Consolas','Courier New',monospace; height: 100vh; display: flex; flex-direction: column; }
-    .header { padding: 12px 20px; border-bottom: 1px solid #1a1a2e; display: flex; align-items: center; gap: 10px; font-size: 14px; }
-    .header .dot { width: 8px; height: 8px; border-radius: 50%; background: #00ff88; }
-    .header .title { color: #00ff88; font-weight: bold; }
-    .msg-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
-    .msg { display: flex; gap: 10px; max-width: 80%; }
-    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
-    .msg.ai { align-self: flex-start; }
-    .msg .bubble { padding: 10px 14px; border-radius: 8px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
-    .msg.user .bubble { background: #1a1a2e; color: #e0e0e0; }
-    .msg.ai .bubble { background: #0f1a0f; border: 1px solid #1a3a1a; }
-    .msg .avatar { font-size: 20px; }
-    .agent-tag { font-size: 10px; color: #00ff88; margin-bottom: 4px; }
-    .input-area { padding: 12px 20px; border-top: 1px solid #1a1a2e; display: flex; gap: 8px; }
-    .input-area input { flex: 1; padding: 10px 14px; background: #111; border: 1px solid #333; border-radius: 6px; color: #e0e0e0; font-family: inherit; font-size: 13px; outline: none; }
-    .input-area input:focus { border-color: #00ff88; }
-    .input-area button { padding: 10px 20px; background: #00ff88; color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: inherit; }
-    .welcome { text-align: center; padding: 60px 20px; color: #555; }
-    .welcome .icon { font-size: 48px; }
-    .welcome p { margin-top: 10px; }
-  </style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Nobody — Security Partner</title>
+<style>
+:root{--bg:#0a0a0a;--surface:#111111;--border:#1a1a1a;--text:#d4d4d4;--dim:#666;--accent:#00ff88;--warn:#ff8800;--red:#ff4444;--radius:8px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'SF Mono','Consolas',monospace;display:flex;height:100vh;overflow:hidden}
+/* 左侧导航 */
+nav{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:24px 0;flex-shrink:0}
+.nav-brand{padding:0 20px 20px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.nav-brand h1{font-size:16px;color:var(--accent);font-weight:600}
+.nav-brand .sub{font-size:10px;color:var(--dim);margin-top:2px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;font-size:12px;color:var(--dim);cursor:pointer;transition:all .15s;border:none;background:none;width:100%;text-align:left;font-family:inherit}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,0.03)}
+.nav-item.active{color:var(--accent);background:rgba(0,255,136,0.05);border-right:2px solid var(--accent)}
+.nav-item .badge{font-size:9px;background:var(--warn);color:#000;padding:1px 6px;border-radius:10px;margin-left:auto}
+.nav-footer{padding:20px;border-top:1px solid var(--border);margin-top:auto;font-size:10px;color:var(--dim)}
+/* 右侧主区域 */
+main{flex:1;display:flex;flex-direction:column;min-width:0}
+.panel{display:none;flex-direction:column;flex:1;overflow:hidden}
+.panel.active{display:flex}
+/* 聊天 */
+.chat-header{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px}
+.chat-header .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.chat-msgs{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+.chat-msgs .welcome{text-align:center;padding:60px 20px;color:var(--dim)}
+.chat-msgs .welcome .icon{font-size:48px}
+.chat-msgs .welcome h2{color:var(--accent);margin:12px 0 4px;font-size:18px}
+.msg{display:flex;gap:10px;max-width:85%}
+.msg.user{align-self:flex-end;flex-direction:row-reverse}
+.msg.ai{align-self:flex-start}
+.msg .bubble{padding:10px 14px;border-radius:var(--radius);font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.msg.user .bubble{background:#1a1a2e}
+.msg.ai .bubble{background:var(--surface);border:1px solid var(--border)}
+.agent-tag{font-size:10px;color:var(--accent);margin-bottom:4px}
+.chat-input{padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px}
+.chat-input input{flex:1;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:inherit;font-size:13px;outline:none}
+.chat-input input:focus{border-color:var(--accent)}
+.chat-input button{padding:10px 20px;background:var(--accent);color:#000;border:none;border-radius:var(--radius);cursor:pointer;font-weight:600;font-family:inherit}
+/* 记忆/知识/训练/Agents 面板 */
+.content-panel{padding:24px;overflow-y:auto;flex:1}
+.content-panel h2{font-size:16px;color:var(--accent);margin-bottom:4px}
+.content-panel .desc{font-size:11px;color:var(--dim);margin-bottom:20px}
+.item-list{display:flex;flex-direction:column;gap:8px}
+.item-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;font-size:12px}
+.item-card .item-key{color:var(--accent);font-weight:600;margin-bottom:4px}
+.item-card .item-val{color:var(--dim);word-break:break-word}
+.item-card .item-time{font-size:10px;color:var(--dim);margin-top:4px}
+.item-actions{margin-top:6px;display:flex;gap:6px}
+.item-actions button{padding:2px 8px;font-size:10px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--dim);cursor:pointer;font-family:inherit}
+.item-actions button:hover{color:var(--red);border-color:var(--red)}
+.input-row{display:flex;gap:8px;margin-bottom:16px}
+.input-row input{flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:inherit;font-size:12px;outline:none}
+.input-row input:focus{border-color:var(--accent)}
+.input-row button{padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:var(--radius);cursor:pointer;font-family:inherit;font-size:12px}
+.search-box{margin-bottom:16px}
+.search-box input{width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:inherit;font-size:12px;outline:none}
+.empty-state{text-align:center;padding:40px;color:var(--dim)}
+/* 管理员标签 */
+.admin-bar{display:none;padding:6px 20px;background:rgba(255,136,0,0.08);border-bottom:1px solid rgba(255,136,0,0.15);font-size:10px;color:var(--warn)}
+.admin-bar span{cursor:pointer;margin-right:16px}
+.admin-bar span:hover{color:var(--text)}
+@media(max-width:768px){nav{width:60px}.nav-brand h1,.nav-item span,.nav-footer{display:none}}
+</style>
 </head>
 <body>
 
-<div class="header">
-  <div class="dot"></div>
-  <span class="title">Nobody</span>
-  <span style="color:#555;font-size:12px;" id="modeLabel">游客</span>
-  <a href="admin.html" id="adminLink" style="margin-left:8px;font-size:10px;color:#00ff88;text-decoration:none;display:none;">管理</a>
-  <span style="margin-left:auto;font-size:11px;color:#555;cursor:pointer;" onclick="logout()">exit</span>
-</div>
-
-<div class="msg-area" id="msgs">
-  <div class="welcome">
-    <div class="icon"><svg width="60" height="60" viewBox="0 0 60 60">
-      <circle cx="30" cy="30" r="28" fill="#1a1a2e" stroke="#00ff88" stroke-width="1.5"/>
-      <ellipse cx="30" cy="22" rx="14" ry="12" fill="#111"/>
-      <rect x="14" y="8" width="32" height="8" rx="2" fill="#0a0a0a"/>
-      <rect x="18" y="3" width="24" height="7" rx="3" fill="#111"/>
-      <circle cx="23" cy="22" r="3" fill="#00ff88"/>
-      <circle cx="37" cy="22" r="3" fill="#00ff88"/>
-      <rect x="22" y="32" width="16" height="2" rx="1" fill="#00ff88"/>
-      <path d="M20 36 Q30 42 40 36" stroke="#00ff88" stroke-width="1.5" fill="none"/>
-    </svg></div>
-    <p>Nobody 在线。问吧。</p>
-    <p style="font-size:11px;color:#444;">try: SQL注入是什么 | CVE怎么查 | OWASP Top10</p>
+<!-- 左侧导航 -->
+<nav>
+  <div class="nav-brand"><h1>Nobody</h1><div class="sub">Security Partner v2.0</div></div>
+  <button class="nav-item active" data-panel="chat"><span>💬</span> 对话</button>
+  <button class="nav-item" data-panel="memory"><span>🧠</span> 长期记忆</button>
+  <button class="nav-item" data-panel="knowledge"><span>📚</span> 知识库</button>
+  <button class="nav-item" data-panel="agents"><span>🤖</span> Agents</button>
+  <button class="nav-item" data-panel="training"><span>🎓</span> 训练</button>
+  <div class="nav-footer">
+    <div>固定人格 · 长期记忆</div>
+    <div>no0by 的安全搭档</div>
   </div>
-</div>
+</nav>
 
-<div class="input-area">
-  <input id="q" placeholder="向 Nobody 提问..." onkeydown="if(event.key==='Enter')send()">
-  <button onclick="send()">发送</button>
-  <button onclick="pushToFeishu()" title="推送到飞书" style="background:#1a1a2e;color:#00ff88;border:1px solid #00ff88;font-size:11px;padding:10px 12px;">📱</button>
-</div>
+<!-- 右侧 -->
+<main>
+  <div class="admin-bar" id="adminBar">
+    <span id="memToggle" onclick="toggleMemMode()">🧠 记忆：关</span>
+    <span onclick="navTo('memory')">📋 查看记忆</span>
+    <span onclick="navTo('training')">🎓 训练 Nobody</span>
+  </div>
+
+  <!-- 💬 对话 -->
+  <div class="panel active" id="panel-chat">
+    <div class="chat-header"><div class="dot"></div>Nobody 在线 · <span id="modeLabel" style="color:var(--dim)">游客</span></div>
+    <div class="chat-msgs" id="msgs">
+      <div class="welcome"><div class="icon">👤</div><h2>Nobody 在线</h2><p>no0by 的安全搭档。问吧。</p></div>
+    </div>
+    <div class="chat-input">
+      <input id="q" placeholder="向 Nobody 提问..." onkeydown="if(event.key==='Enter')send()">
+      <button onclick="send()">发送</button>
+    </div>
+  </div>
+
+  <!-- 🧠 长期记忆 -->
+  <div class="panel" id="panel-memory">
+    <div class="content-panel">
+      <h2>🧠 长期记忆</h2><div class="desc">Nobody 记住的关于你的一切</div>
+      <div class="search-box"><input type="text" id="memSearch" placeholder="搜索记忆..." oninput="loadMemory()"></div>
+      <div class="input-row">
+        <input type="text" id="memKey" placeholder="键 (如: name, goal, preference)">
+        <input type="text" id="memVal" placeholder="值 (如: no0by, OSCP备考)">
+        <button onclick="saveMem()">保存</button>
+      </div>
+      <div class="item-list" id="memList"><div class="empty-state">加载中...</div></div>
+    </div>
+  </div>
+
+  <!-- 📚 知识库 -->
+  <div class="panel" id="panel-knowledge">
+    <div class="content-panel">
+      <h2>📚 知识库</h2><div class="desc">你的笔记、Payload、Writeup</div>
+      <div class="search-box"><input type="text" id="knowSearch" placeholder="搜索知识..." oninput="loadKnowledge()"></div>
+      <div class="input-row">
+        <input type="text" id="knowKey" placeholder="标题 (如: SQL注入Payload)">
+        <input type="text" id="knowVal" placeholder="内容 (如: ' OR '1'='1)">
+        <button onclick="saveKnow()">保存</button>
+      </div>
+      <div class="item-list" id="knowList"><div class="empty-state">加载中...</div></div>
+    </div>
+  </div>
+
+  <!-- 🤖 Agents -->
+  <div class="panel" id="panel-agents">
+    <div class="content-panel">
+      <h2>🤖 Agents</h2><div class="desc">Nobody 的能力模块</div>
+      <div class="item-list" id="agentList"><div class="empty-state">加载中...</div></div>
+    </div>
+  </div>
+
+  <!-- 🎓 训练 -->
+  <div class="panel" id="panel-training">
+    <div class="content-panel">
+      <h2>🎓 训练 Nobody</h2><div class="desc">主动教 Nobody 你今天学了什么</div>
+      <div class="input-row">
+        <input type="text" id="trainInput" placeholder="今天学到了什么？如: SQL注入盲注技术...">
+        <button onclick="train()">提交</button>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--dim)">
+        <label><input type="checkbox" id="trainMem" checked> 加入长期记忆</label>
+        <label style="margin-left:12px;"><input type="checkbox" id="trainKnow" checked> 加入知识库</label>
+      </div>
+      <div class="item-list" id="trainList" style="margin-top:16px;"><div class="empty-state">暂无训练记录</div></div>
+    </div>
+  </div>
+</main>
 
 <script>
+// ====== 导航 ======
 const ADMIN_KEY = localStorage.getItem('admin_key') || '';
-const IS_ADMIN = ADMIN_KEY === 'nobody2025';
+const IS_ADMIN = ADMIN_KEY.length >= 6;
+let MEM_MODE = false;
 if (IS_ADMIN) {
   document.getElementById('modeLabel').textContent = 'Master';
-  document.getElementById('modeLabel').style.color = '#ff8800';
-  document.getElementById('adminLink').style.display = 'inline';
+  document.getElementById('modeLabel').style.color = 'var(--warn)';
+  document.getElementById('adminBar').style.display = 'flex';
 }
 
-function logout() { localStorage.removeItem('admin_key'); window.location.href = 'login.html'; }
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const p = btn.dataset.panel;
+    document.querySelectorAll('.panel').forEach(pn => pn.classList.remove('active'));
+    document.getElementById('panel-' + p).classList.add('active');
+    if (p === 'memory') loadMemory();
+    if (p === 'knowledge') loadKnowledge();
+    if (p === 'agents') loadAgents();
+  });
+});
 
+function navTo(p) {
+  document.querySelector(`[data-panel="${p}"]`).click();
+}
+
+// ====== 记忆开关 ======
+function toggleMemMode() {
+  MEM_MODE = !MEM_MODE;
+  const el = document.getElementById('memToggle');
+  el.textContent = MEM_MODE ? '🧠 记忆：开' : '🧠 记忆：关';
+  el.style.color = MEM_MODE ? 'var(--warn)' : '';
+}
+
+// ====== 聊天 ======
 async function send() {
-  const q = document.getElementById('q');
-  const text = q.value.trim();
-  if (!text) return;
-  q.value = '';
-
+  const q = document.getElementById('q'); const text = q.value.trim();
+  if (!text) return; q.value = '';
   document.querySelector('.welcome')?.remove();
   const msgs = document.getElementById('msgs');
 
-  // 用户消息
-  msgs.innerHTML += `<div class="msg user"><div class="bubble">${esc(text)}</div><div class="avatar">👤</div></div>`;
+  msgs.innerHTML += `<div class="msg user"><div class="bubble">${esc(text)}</div></div>`;
+  const aiDiv = document.createElement('div'); aiDiv.className = 'msg ai';
+  aiDiv.innerHTML = '<div><div class="agent-tag">思考...</div><div class="bubble" id="bub"></div></div>';
+  msgs.appendChild(aiDiv); msgs.scrollTop = msgs.scrollHeight;
 
-  // AI 消息占位
-  const aiDiv = document.createElement('div');
-  aiDiv.className = 'msg ai';
-  aiDiv.innerHTML = '<div class="avatar">👤</div><div><div class="agent-tag">思考中...</div><div class="skills-tag" style="font-size:10px;color:#666;display:none;"></div><div class="bubble" id="aiBubble"></div></div>';
-  msgs.appendChild(aiDiv);
-  msgs.scrollTop = msgs.scrollHeight;
-
-  const bubble = aiDiv.querySelector('#aiBubble');
-  const tag = aiDiv.querySelector('.agent-tag');
+  const bubble = aiDiv.querySelector('#bub'), tag = aiDiv.querySelector('.agent-tag');
   let full = '';
-
   try {
-    const res = await fetch('/api/chat/ask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Admin': IS_ADMIN ? ADMIN_KEY : '' },
-      body: JSON.stringify({ question: text, stream: true })
-    });
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-
+    const h = {'Content-Type':'application/json'}; if (IS_ADMIN) h['X-Admin'] = ADMIN_KEY;
+    const res = await fetch('/api/chat/ask', {method:'POST',headers:h,body:JSON.stringify({question:text,stream:true})});
+    const reader = res.body.getReader(), dec = new TextDecoder();
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      for (const line of decoder.decode(value, { stream: true }).split('\n')) {
+      const {done,value} = await reader.read(); if (done) break;
+      for (const line of dec.decode(value,{stream:true}).split('\n')) {
         if (!line.startsWith('data: ')) continue;
         try {
           const p = JSON.parse(line.slice(6));
           if (p.type === 'agent') {
-            const sevColors = {P0:'#ff0000',P1:'#ff8800',P2:'#ffdd00',INFO:'#00ff88'};
-            const sevColor = sevColors[p.severity] || '#00ff88';
-            tag.innerHTML = `${p.emoji} ${p.name} · <span style="color:${sevColor};font-weight:bold;">${p.severity}</span>`;
-            if (p.sev_reason) tag.title = p.sev_reason;
-          } else if (p.type === 'skills') {
-            const skillsTag = aiDiv.querySelector('.skills-tag');
-            if (skillsTag && p.skills && p.skills.length) {
-              skillsTag.textContent = '🛠️ ' + p.skills.map(s => s.display || s.name).join(' + ');
-              skillsTag.style.display = 'block';
-            }
-          }
-          else if (p.type === 'chunk') { full += p.text; bubble.textContent = full; }
-          else if (p.type === 'done') { tag.textContent = `${tag.textContent} · 完毕`; }
+            const sev = {P0:'#ff0000',P1:'#ff8800',P2:'#ffdd00',INFO:'var(--accent)'};
+            tag.innerHTML = `${p.emoji} ${p.name} · <span style="color:${sev[p.severity]||'var(--accent)'}">${p.severity}</span>`;
+          } else if (p.type === 'chunk') { full += p.text; bubble.textContent = full; }
         } catch(e) {}
       }
       msgs.scrollTop = msgs.scrollHeight;
     }
-  } catch(e) {
-    bubble.textContent = '连接失败：' + e.message;
-    tag.textContent = '👤 Nobody · 离线';
+  } catch(e) { bubble.textContent = '连接失败'; tag.textContent = '离线'; }
+
+  // 记忆模式
+  if (IS_ADMIN && MEM_MODE && full) {
+    try {
+      await fetch('/api/chat/remember', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:'记住 对话: '+text.slice(0,100),stream:false})});
+    } catch(e) {}
   }
 }
 
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function logout() { localStorage.removeItem('admin_key'); window.location.href = 'login.html'; }
 
-async function pushToFeishu() {
-  const openId = prompt('飞书用户 open_id（在飞书后台用户列表查）：');
-  if (!openId) return;
-  const bubbles = document.querySelectorAll('.ai .bubble');
-  const last = bubbles.length ? bubbles[bubbles.length-1].textContent : '';
-  if (!last || last.length < 2) { alert('没有可推送的内容，先问 Nobody 一个问题吧'); return; }
+// ====== 记忆管理 ======
+async function loadMemory() {
+  if (!IS_ADMIN) return;
+  const q = (document.getElementById('memSearch')?.value || '').toLowerCase();
   try {
-    const r = await fetch('/api/webhook/send', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({open_id: openId, text: last.slice(0,500)})
-    });
+    const r = await fetch('/api/chat/welcome', {headers:{'X-Admin':ADMIN_KEY}});
     const d = await r.json();
-    alert(d.msg === 'ok' ? '已推送到飞书！' : '失败：' + (d.msg || '未知'));
-  } catch(e) { alert('推送失败'); }
+    const items = d.data?.core_memory || {};
+    const list = Object.entries(items).filter(([k]) => !q || k.toLowerCase().includes(q) || JSON.stringify(items[k]).toLowerCase().includes(q));
+    document.getElementById('memList').innerHTML = list.length ? list.map(([k,v]) => `
+      <div class="item-card">
+        <div class="item-key">${esc(k)}</div>
+        <div class="item-val">${esc(JSON.stringify(v).slice(0,200))}</div>
+        <div class="item-actions"><button onclick="delMem('${esc(k)}')">删除</button></div>
+      </div>`).join('') : '<div class="empty-state">暂无记忆</div>';
+  } catch(e) {}
 }
+
+async function saveMem() {
+  const k = document.getElementById('memKey').value.trim();
+  const v = document.getElementById('memVal').value.trim();
+  if (!k || !v) return;
+  try {
+    await fetch('/api/chat/remember', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:`记住 ${k}: ${v}`,stream:false})});
+    document.getElementById('memKey').value = ''; document.getElementById('memVal').value = '';
+    loadMemory();
+  } catch(e) {}
+}
+
+// ====== 知识库管理 ======
+async function loadKnowledge() {
+  if (!IS_ADMIN) return;
+  const q = (document.getElementById('knowSearch')?.value || '').toLowerCase();
+  try {
+    const r = await fetch('/api/chat/welcome', {headers:{'X-Admin':ADMIN_KEY}});
+    const d = await r.json();
+    const items = d.data?.recent_knowledge || [];
+    document.getElementById('knowList').innerHTML = items.length ? items.map(k => `
+      <div class="item-card"><div class="item-key">${esc(k)}</div></div>`).join('') : '<div class="empty-state">暂无知识条目。在聊天中说"知识 xxx"添加。</div>';
+  } catch(e) {}
+}
+
+async function saveKnow() {
+  const k = document.getElementById('knowKey').value.trim();
+  const v = document.getElementById('knowVal').value.trim();
+  if (!k || !v) return;
+  try {
+    await fetch('/api/chat/remember', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:`知识 ${k}: ${v}`,stream:false})});
+    document.getElementById('knowKey').value = ''; document.getElementById('knowVal').value = '';
+    loadKnowledge();
+  } catch(e) {}
+}
+
+// ====== Agents ======
+async function loadAgents() {
+  try {
+    const r = await fetch('/api/chat/welcome');
+    const d = await r.json();
+    document.getElementById('agentList').innerHTML = `
+      <div class="item-card"><div class="item-key">Nobody（主人格）</div><div class="item-val">固定人格，调度所有Agent</div></div>
+      <div class="item-card"><div class="item-key">Memory Agent</div><div class="item-val">管理三层记忆系统</div></div>
+      <div class="item-card"><div class="item-key">Knowledge Agent</div><div class="item-val">RAG检索 + 知识库管理</div></div>
+      <div class="item-card"><div class="item-key">Planner Agent</div><div class="item-val">主动规划 + 学习路线</div></div>
+    `;
+  } catch(e) {}
+}
+
+// ====== 训练 ======
+async function train() {
+  const v = document.getElementById('trainInput').value.trim();
+  if (!v) return;
+  const addMem = document.getElementById('trainMem').checked;
+  const addKnow = document.getElementById('trainKnow').checked;
+
+  try {
+    if (addMem) {
+      await fetch('/api/chat/remember', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:'记住 学到了: '+v,stream:false})});
+    }
+    if (addKnow) {
+      await fetch('/api/chat/remember', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:'知识 训练: '+v,stream:false})});
+    }
+    document.getElementById('trainInput').value = '';
+    document.getElementById('trainList').innerHTML = '<div class="item-card"><div class="item-key">✅ 已训练</div><div class="item-val">'+esc(v.slice(0,200))+'</div></div>' + document.getElementById('trainList').innerHTML;
+  } catch(e) {}
+}
+
+// 初始加载
+if (IS_ADMIN) { /* 预加载记忆列表供后续使用 */ }
 </script>
 </body>
 </html>
