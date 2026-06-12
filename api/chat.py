@@ -221,6 +221,17 @@ def del_goal(q: str = "", x_admin: Optional[str] = Header(None)):
         db.commit(); db.close()
     return {"code": 0, "message": "已删除"}
 
+
+@router.get("/skills")
+def get_skills():
+    """获取技能树"""
+    from core.skills_loader import registry
+    reg = registry()
+    skills = [{"id": name, "display": cfg.get("display",""), "triggers": cfg.get("triggers",[]),
+               "version": cfg.get("version","1.0"), "priority": cfg.get("priority",5),
+               "has_handler": cfg.get("handler") is not None} for name, cfg in reg.items()]
+    return {"code": 0, "data": skills}
+
 @router.post("/ask")
 def chat_ask(req: AskReq, x_admin: Optional[str] = Header(None)):
     is_admin = _verify_admin(x_admin)
