@@ -247,7 +247,7 @@ def _rag_search(question: str) -> str:
 # ========== 知识库初始化 ==========
 
 def init_knowledge():
-    """启动时检查知识库，空则导入种子文档"""
+    """启动时检查知识库，空则导入种子文档 + 公共知识"""
     import chromadb
 
     persist_dir = os.path.join(os.path.dirname(__file__), "chroma_data")
@@ -257,28 +257,34 @@ def init_knowledge():
     if collection.count() > 0:
         return
 
-    seeds_dir = os.path.join(os.path.dirname(__file__), "knowledge", "seeds")
-    if not os.path.exists(seeds_dir):
-        return
-
-    print("[Nobody] 知识库为空，导入种子文档...")
+    print("[Nobody] 知识库为空，导入种子文档 + 公共知识...")
     count = 0
-    for f in os.listdir(seeds_dir):
-        fp = os.path.join(seeds_dir, f)
-        if not f.endswith((".txt", ".md")):
+
+    for subdir in ["seeds", "public"]:
+        src = os.path.join(os.path.dirname(__file__), "knowledge", subdir)
+        if not os.path.exists(src):
             continue
-        with open(fp, "r", encoding="utf-8") as fh:
-            text = fh.read()
-        # 简单切片
-        chunks = [text[i:i+500] for i in range(0, len(text), 500)]
-        for j, chunk in enumerate(chunks):
-            collection.add(
-                ids=[f"{f}_chunk_{j}"],
-                documents=[chunk],
-                metadatas=[{"source": f, "chunk": j}]
-            )
-            count += 1
-    print(f"[Nobody] 已导入 {count} 个知识片段")
+        for root, dirs, files in os.walk(src):
+            for f in files:
+                if not f.endswith((".txt", ".md")):
+                    continue
+                fp = os.path.join(root, f)
+                try:
+                    with open(fp, "r", encoding="utf-8") as fh:
+                        text = fh.read()
+                except Exception:
+                    continue
+                rel = os.path.relpath(fp, os.path.join(os.path.dirname(__file__), "knowledge"))
+                is_public = subdir == "public"
+                chunks = [text[i:i+500] for i in range(0, len(text), 500)]
+                for j, chunk in enumerate(chunks):
+                    collection.add(
+                        ids=[f"{rel}_chunk_{j}"],
+                        documents=[chunk],
+                        metadatas=[{"source": rel, "chunk": j, "public": is_public}]
+                    )
+                    count += 1
+    print(f"[Nobody] 已导入 {count} 个知识片段（含公共知识层）")
 
 # ========== 核心问答 ==========
 
