@@ -103,6 +103,19 @@ def _reply_feishu(target_id: str, text: str, chat_id: str = ""):
         pass
 
 
+@router.post("/send")
+async def send_to_feishu(request: Request):
+    """从 Web 端主动推送消息到飞书用户"""
+    body = await request.json()
+    open_id = body.get("open_id", os.getenv("FEISHU_DEFAULT_USER", ""))
+    text = body.get("text", "")
+    if not open_id or not text:
+        return JSONResponse({"msg": "缺少 open_id 或 text"}, status_code=400)
+
+    _reply_feishu(open_id, f"{text}")
+    return {"msg": "ok", "sent_to": open_id}
+
+
 @router.get("/health")
 def webhook_health():
     return {"status": "ok", "channel": "feishu"}
