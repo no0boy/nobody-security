@@ -62,6 +62,10 @@ main{flex:1;display:flex;flex-direction:column;min-width:0}
 .admin-bar{display:none;padding:6px 20px;background:rgba(255,136,0,0.08);border-bottom:1px solid rgba(255,136,0,0.15);font-size:10px;color:var(--warn)}
 .admin-bar span{cursor:pointer;margin-right:16px}
 .admin-bar span:hover{color:var(--text)}
+/* 快捷标签 */
+.qa-btn{padding:4px 10px;font-size:10px;border:1px solid var(--border);border-radius:12px;color:var(--dim);cursor:pointer;user-select:none;transition:all .15s}
+.qa-btn:hover{color:var(--text);border-color:var(--dim)}
+.qa-btn.on{background:var(--warn);color:#000;border-color:var(--warn)}
 @media(max-width:768px){nav{width:60px}.nav-brand h1,.nav-item span,.nav-footer{display:none}}
 </style>
 </head>
@@ -98,6 +102,12 @@ main{flex:1;display:flex;flex-direction:column;min-width:0}
     <div class="chat-input">
       <input id="q" placeholder="向 Nobody 提问..." onkeydown="if(event.key==='Enter')send()">
       <button onclick="send()">发送</button>
+    </div>
+    <div id="quickActions" style="padding:0 20px 8px;display:flex;gap:6px;flex-wrap:wrap;">
+      <span class="qa-btn" id="qaMem" onclick="toggleMemMode()" title="开启后对话存入长期记忆">🧠 记忆</span>
+      <span class="qa-btn" onclick="navTo('training')" title="主动教 Nobody 新知识">🎓 训练</span>
+      <span class="qa-btn" onclick="navTo('memory')" title="查看所有记忆">📋 查看</span>
+      <span class="qa-btn" onclick="navTo('knowledge')" title="管理知识库">📚 知识</span>
     </div>
   </div>
 
@@ -163,6 +173,9 @@ if (IS_ADMIN) {
   document.getElementById('modeLabel').textContent = 'Master';
   document.getElementById('modeLabel').style.color = 'var(--warn)';
   document.getElementById('adminBar').style.display = 'flex';
+  document.getElementById('quickActions').style.display = 'flex';
+} else {
+  document.getElementById('quickActions').style.display = 'none';
 }
 
 document.querySelectorAll('.nav-item').forEach(btn => {
@@ -186,8 +199,9 @@ function navTo(p) {
 function toggleMemMode() {
   MEM_MODE = !MEM_MODE;
   const el = document.getElementById('memToggle');
-  el.textContent = MEM_MODE ? '🧠 记忆：开' : '🧠 记忆：关';
-  el.style.color = MEM_MODE ? 'var(--warn)' : '';
+  if (el) { el.textContent = MEM_MODE ? '🧠 记忆：开' : '🧠 记忆：关'; el.style.color = MEM_MODE ? 'var(--warn)' : ''; }
+  const qa = document.getElementById('qaMem');
+  if (qa) { qa.classList.toggle('on', MEM_MODE); qa.textContent = MEM_MODE ? '🧠 记忆中' : '🧠 记忆'; }
 }
 
 // ====== 聊天 ======
