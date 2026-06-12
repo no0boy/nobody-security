@@ -22,13 +22,24 @@ async def feishu_callback(request: Request):
     if body.get("type") == "url_verification":
         return JSONResponse({"challenge": body.get("challenge", "")})
 
-    # 提取消息
-    msg = body.get("event", {}).get("message", {})
+    # 打印收到的请求（调试用）
+    import sys
+    print(f"[飞书] 收到请求: {json.dumps(body, ensure_ascii=False)[:300]}", flush=True)
+
+    # 提取消息 — 兼容多种格式
+    text = ""
+    event = body.get("event", {}) or body.get("header", {})
+    msg = event.get("message", {}) or event.get("event", {}).get("message", {})
+
     content = msg.get("content", "{}")
     try:
         text = json.loads(content).get("text", "")
     except Exception:
-        text = content
+        text = content if isinstance(content, str) and len(content) < 500 else ""
+    if not text:
+        text = msg.get("text", "")
+
+    print(f"[飞书] 提取文本: {text[:100]}", flush=True)
 
     if not text:
         return JSONResponse({"msg": "ok"})
