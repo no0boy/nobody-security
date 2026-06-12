@@ -111,13 +111,52 @@ def classify(question: str) -> dict:
     return best
 
 def match_skills(question: str) -> list:
-    """匹配相关技能"""
+    """匹配相关技能并执行工具函数"""
     matched = []
     for skill in _skills:
         score = sum(1 for kw in skill.get("triggers", []) if kw.lower() in question.lower())
         if score > 0:
-            matched.append(skill)
+            s = {**skill, "score": score}
+            # 执行技能的工具（如果有）
+            tools_result = []
+            for tool_name in skill.get("tools", []):
+                fn = _get_tool_fn(tool_name)
+                if fn:
+                    try:
+                        tools_result.append(fn(question))
+                    except Exception:
+                        pass
+            s["tools_result"] = tools_result
+            matched.append(s)
+    matched.sort(key=lambda x: x.get("score", 0), reverse=True)
     return matched
+
+
+def _get_tool_fn(name: str):
+    """工具函数注册表 — 映射工具名到函数"""
+    import urllib.request, json as _json
+
+    def cve_lookup(q):
+        try:
+            kw = q.split()[-1] if q.split() else q
+            url = f"https://cve.circl.lu/api/cve/{kw}"
+            req = urllib.request.Request(url, headers={"User-Agent": "Nobody/1.0"})
+            resp = urllib.request.urlopen(req, timeout=3)
+            data = _json.loads(resp.read().decode())
+            return f"CVE-{kw}: {data.get('summary', '无描述')[:200]}"
+        except Exception:
+            return None
+
+    def sqli_detect(q):
+        indicators = ["'", "\"", "OR 1=1", "UNION SELECT", "--"]
+        found = [i for i in indicators if i.lower() in q.lower()]
+        return f"检测到SQL注入特征：{', '.join(found)}" if found else "未检测到明显SQL注入特征"
+
+    _tools = {
+        "cve_lookup": cve_lookup,
+        "sqli_detect": sqli_detect,
+    }
+    return _tools.get(name)
 
 # ========== RAG 检索 ==========
 
@@ -262,6 +301,8 @@ def ask_stream(question: str):
 
     yield {"type": "agent", "name": agent.get("display", "Nobody"), "emoji": agent.get("emoji", "👤"),
            "severity": agent.get("severity", "INFO"), "sev_reason": agent.get("sev_reason", "")}
+    if skills:
+        yield {"type": "skills", "skills": [{"name": s.get("name",""), "display": s.get("display","")} for s in skills]}
 
     if _llm is None:
         yield {"type": "chunk", "text": "Nobody 大脑未连接。"}
