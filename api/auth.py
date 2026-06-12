@@ -32,18 +32,8 @@ class LoginReq(BaseModel):
 
 @router.post("/register")
 def register(req: LoginReq):
-    if len(req.username) < 2 or len(req.password) < 4:
-        return {"code": 400, "message": "用户名至少2字，密码至少4位"}
-    db = _user_db()
-    try:
-        db.execute("INSERT INTO users VALUES (?,?)",
-                   (req.username, hashlib.sha256(req.password.encode()).hexdigest()))
-        db.commit()
-        return {"code": 0, "data": {"token": create_token(req.username), "user": {"username": req.username}}}
-    except sqlite3.IntegrityError:
-        return {"code": 400, "message": "用户名已存在"}
-    finally:
-        db.close()
+    """注册已关闭。管理员在 users.db 手动添加账号。"""
+    return {"code": 403, "message": "注册已关闭。如需账号请联系管理员。"}
 
 @router.post("/guest")
 def guest_login():
