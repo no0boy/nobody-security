@@ -187,6 +187,40 @@ def suggest_memory(req: AskReq, x_admin: Optional[str] = Header(None)):
 
     return {"code": 0, "data": {"worth_saving": False, "reason": "无法判断"}}
 
+
+# ====== Goals 目标系统 ======
+
+@router.get("/goals")
+def get_goals(x_admin: Optional[str] = Header(None)):
+    """获取目标列表"""
+    if not _verify_admin(x_admin): return {"code": 403, "message": "仅管理员"}
+    goals = Memory.get("nobody", "goals") or {}
+    return {"code": 0, "data": [{"id": k, **v} for k, v in goals.items()]}
+
+@router.post("/goals")
+def add_goal(req: AskReq, x_admin: Optional[str] = Header(None)):
+    """添加目标"""
+    if not _verify_admin(x_admin): return {"code": 403, "message": "仅管理员"}
+    q = req.question.strip()
+    if ":" in q:
+        name, progress = q.split(":", 1)
+        Memory.set("nobody", "goals", name.strip(), {"progress": int(progress.strip() or 0), "time": str(__import__('datetime').datetime.now())})
+    else:
+        Memory.set("nobody", "goals", q, {"progress": 0, "time": str(__import__('datetime').datetime.now())})
+    return {"code": 0, "message": "目标已保存"}
+
+@router.delete("/goals")
+def del_goal(q: str = "", x_admin: Optional[str] = Header(None)):
+    """删除目标"""
+    if not _verify_admin(x_admin): return {"code": 403, "message": "仅管理员"}
+    # 直接用 query 参数
+    goals = Memory.get("nobody", "goals") or {}
+    if q in goals:
+        db = __import__('sqlite3').connect(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory_core.db"))
+        db.execute("DELETE FROM memories WHERE user_id=? AND type=? AND key=?", ("nobody", "goals", q))
+        db.commit(); db.close()
+    return {"code": 0, "message": "已删除"}
+
 @router.post("/ask")
 def chat_ask(req: AskReq, x_admin: Optional[str] = Header(None)):
     is_admin = _verify_admin(x_admin)

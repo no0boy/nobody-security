@@ -79,6 +79,7 @@ main{flex:1;display:flex;flex-direction:column;min-width:0}
   <button class="nav-item" data-panel="memory"><span>🧠</span> 长期记忆</button>
   <button class="nav-item" data-panel="knowledge"><span>📚</span> 知识库</button>
   <button class="nav-item" data-panel="training"><span>🎓</span> 训练</button>
+  <button class="nav-item" data-panel="goals"><span>🎯</span> 目标</button>
   <button class="nav-item" data-panel="agents"><span>🤖</span> Agents</button>
   <div class="nav-footer">
     <div>固定人格 · 长期记忆</div>
@@ -171,6 +172,20 @@ main{flex:1;display:flex;flex-direction:column;min-width:0}
         <button onclick="saveKnow()">保存</button>
       </div>
       <div class="item-list" id="knowTree"><div class="empty-state">加载中...</div></div>
+    </div>
+  </div>
+
+  <!-- 🎯 目标 -->
+  <div class="panel" id="panel-goals">
+    <div class="content-panel">
+      <h2>🎯 目标</h2><div class="desc">长期目标跟踪 · Nobody 帮你拆解</div>
+      <div class="input-row">
+        <input type="text" id="goalName" placeholder="目标名称">
+        <input type="text" id="goalProgress" placeholder="进度%" style="width:80px;">
+        <button onclick="saveGoal()">添加</button>
+      </div>
+      <div style="margin-bottom:12px;font-size:11px;color:var(--warn);" id="goalSuggestion"></div>
+      <div class="item-list" id="goalList"><div class="empty-state">暂无目标，添加你的第一个长期目标吧</div></div>
     </div>
   </div>
 
@@ -401,6 +416,60 @@ async function train() {
   } catch(e) {}
 }
 
+// ====== Goals ======
+async function loadGoals() {
+  try {
+    const r = await fetch('/api/chat/goals', {headers:{'X-Admin':ADMIN_KEY}});
+    const d = await r.json();
+    if (d.code !== 0) return;
+    const items = d.data || [];
+    document.getElementById('goalList').innerHTML = items.length ? items.map(g => `
+      <div class="item-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div class="item-key">${esc(g.id)}</div>
+            <div style="margin-top:4px;background:var(--border);border-radius:4px;height:6px;width:200px;">
+              <div style="width:${g.progress||0}%;height:100%;background:var(--accent);border-radius:4px;"></div>
+            </div>
+            <div class="item-time">${g.progress||0}%</div>
+          </div>
+          <div class="item-actions">
+            <button onclick="updateGoal('${esc(g.id)}',prompt('新进度%',${g.progress||0}))">更新</button>
+            <button onclick="delGoal('${esc(g.id)}')">删除</button>
+          </div>
+        </div>
+      </div>
+    `).join('') : '<div class="empty-state">暂无目标</div>';
+
+    // 建议
+    const low = items.filter(g => (g.progress||0) < 50);
+    if (low.length) document.getElementById('goalSuggestion').textContent = `💡 有 ${low.length} 个目标进度低于50%，建议重点推进`;
+  } catch(e) {}
+}
+
+async function saveGoal() {
+  const n = document.getElementById('goalName').value.trim();
+  const p = document.getElementById('goalProgress').value.trim() || '0';
+  if (!n) return;
+  await fetch('/api/chat/goals', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:`${n}:${p}`,stream:false})});
+  document.getElementById('goalName').value = '';
+  document.getElementById('goalProgress').value = '';
+  loadGoals();
+}
+
+async function updateGoal(id, progress) {
+  if (!progress) return;
+  await fetch('/api/chat/goals', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:`${id}:${progress}`,stream:false})});
+  loadGoals();
+}
+
+async function delGoal(id) {
+  await fetch('/api/chat/goals?q='+encodeURIComponent(id), {method:'DELETE',headers:{'X-Admin':ADMIN_KEY}});
+  loadGoals();
+}
+
+document.querySelectorAll('[data-panel="goals"]').forEach(b => b.addEventListener('click', loadGoals));
+
 // ====== Today ======
 async function loadToday() {
   try {
@@ -412,7 +481,7 @@ async function loadToday() {
     document.getElementById('todayGreeting').textContent = t.greeting;
     document.getElementById('todayDate').textContent = t.date;
     document.getElementById('todaySuggestions').innerHTML = (t.suggestions||[]).map(s => `<div style="padding:4px 0;">• ${esc(s)}</div>`).join('') || '暂无建议';
-    document.getElementById('todayGoals').innerHTML = (t.goals||[]).length ? (t.goals||[]).map(g => `<div style="padding:2px 0;">🎯 ${esc(g)}</div>`).join('') : '设定目标后展示';
+    document.getElementById('todayGoals').innerHTML = (t.goals||[]).length ? (t.goals||[]).map(g => `<div style="padding:2px 0;">🎯 ${esc(g)} <a href="#" onclick="navTo('goals')" style="color:var(--accent);font-size:10px;">→</a></div>`).join('') : '设定目标后展示';
     document.getElementById('todayRecent').innerHTML = (t.recent_topics||[]).length ? (t.recent_topics||[]).map(r => `<span style="display:inline-block;margin:2px;padding:2px 8px;background:var(--surface);border-radius:10px;font-size:10px;">${esc(r)}</span>`).join('') : '开始学习吧';
     document.getElementById('todayTimeline').innerHTML = (t.timeline||[]).map(l => `<div style="padding:3px 0;font-size:10px;">${l.date} · ${esc(l.event)}</div>`).join('') || '还没有记录';
   } catch(e) {}
