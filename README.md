@@ -1,3 +1,13 @@
+---
+title: Nobody Security Partner
+emoji: 👤
+colorFrom: black
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Nobody — AI Security Partner
 
 > no0boy 的安全搭档。你学什么，它学什么。你变强，它变强。
