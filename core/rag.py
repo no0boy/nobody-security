@@ -4,6 +4,25 @@ import os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def _embed_text(text: str) -> list:
+    """中文语义向量 — DashScope text-embedding-v3（校园项目同款）"""
+    try:
+        import dashscope
+        from http import HTTPStatus
+        # 用 provider.json 里的 key，fallback 到 DASHSCOPE_API_KEY
+        prov_path = os.path.join(ROOT, "provider.json")
+        key = ""
+        if os.path.exists(prov_path):
+            with open(prov_path, "r") as f:
+                key = json.load(f).get("api_key", "")
+        key = key if key and not key.startswith("${") else os.getenv("DASHSCOPE_API_KEY", "")
+        if key:
+            dashscope.api_key = key
+            resp = dashscope.TextEmbedding.call(model="text-embedding-v3", input=text)
+            if resp.status_code == HTTPStatus.OK:
+                return resp.output["embeddings"][0]["embedding"]
+    except Exception:
+        pass
+    # 降级：ChromaDB 内置模型
     import chromadb.utils.embedding_functions as ef
     fn = ef.DefaultEmbeddingFunction()
     return fn([text])[0]
@@ -34,6 +53,12 @@ def init_knowledge():
                         cnt += 1
                     except: pass
     print(f"[RAG] 已入库 {cnt} 个向量片段")
+
+    # 同时建记忆语义索引
+    try:
+        from core.memory import Memory
+        Memory.sem_index()
+    except: pass
 
 def search(question: str) -> str:
     try:

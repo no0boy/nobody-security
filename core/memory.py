@@ -94,29 +94,31 @@ class Memory:
     @staticmethod
     def sem_index():
         """将核心记忆索引到 ChromaDB 用于语义搜索"""
-        import chromadb.utils.embedding_functions as ef
+        from core.rag import _embed_text
         persist = os.path.join(os.path.dirname(ROOT), "chroma_data")
         client = chromadb.PersistentClient(path=persist)
         col = client.get_or_create_collection(name="nobody_memory", metadata={"hnsw:space": "cosine"})
-        fn = ef.DefaultEmbeddingFunction()
 
         items = Memory.core_get() or {}
+        cnt = 0
         for key, val in items.items():
             text = f"{key}: {json.dumps(val, ensure_ascii=False)}"
             try:
-                emb = fn([text])[0]
+                emb = _embed_text(text)
                 col.upsert(ids=[key], embeddings=[emb], documents=[text])
+                cnt += 1
             except: pass
+        print(f"[Memory] 语义索引已重建，共 {cnt} 条")
+        return cnt
 
     @staticmethod
     def sem_search(query: str, top_k: int = 5) -> list:
-        """语义搜索记忆"""
+        """语义搜索记忆 — 中文Embedding"""
         try:
-            import chromadb.utils.embedding_functions as ef
+            from core.rag import _embed_text
             persist = os.path.join(os.path.dirname(ROOT), "chroma_data")
             col = chromadb.PersistentClient(path=persist).get_or_create_collection(name="nobody_memory")
-            fn = ef.DefaultEmbeddingFunction()
-            emb = fn([query])[0]
+            emb = _embed_text(query)
             results = col.query(query_embeddings=[emb], n_results=top_k, include=["documents"])
             return results["documents"][0] if results["documents"] else []
         except: return []
