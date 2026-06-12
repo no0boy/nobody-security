@@ -23,6 +23,7 @@ from core.profile import Profile, Preference
 router = APIRouter(prefix="/api/conversation", tags=["conversation"])
 
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")
+GUEST_MODE = os.getenv("GUEST_MODE", "on").lower() != "off"  # 默认开启
 
 
 def _verify_admin(x_admin: Optional[str]) -> bool:
@@ -44,28 +45,92 @@ class TalkReq(BaseModel):
 
 @router.post("/talk")
 def talk(req: TalkReq, x_admin: Optional[str] = Header(None)):
-    """新版流式对话（使用上下文组装引擎）"""
+    """对话入口。Master 走 LLM + 缓存；游客走缓存 → RAG 直出，零 LLM 成本。"""
     is_admin = _verify_admin(x_admin)
-    user_id = "master" if is_admin else "guest"
+    if not is_admin and not GUEST_MODE:
+        raise HTTPException(status_code=403, detail="游客模式已关闭，请登录管理员")
     sid = req.session_id or "default"
-
     Memory.session_add(sid, "user", req.question)
 
+    if is_admin:
+        return _master_talk(req, sid)
+    else:
+        return _guest_talk(req, sid)
+
+
+def _master_talk(req: TalkReq, sid: str):
+    """Master: LLM 完整对话 → 写缓存"""
     if not req.stream:
-        result = brain.talk(req.question, user_id=user_id, project_id=req.project_id or "")
+        result = brain.talk(req.question, user_id="master", project_id=req.project_id or "")
         Memory.session_add(sid, "ai", result.get("answer", "")[:500])
-        result["is_admin"] = is_admin
+        result["is_admin"] = True
+        # 写缓存供游客复用
+        from store.cache import set as cache_set
+        cache_set(req.question, result.get("answer", ""))
         return {"code": 0, "data": result}
 
     def generate():
-        for event in brain.talk_stream(
-            req.question,
-            user_id=user_id,
-            project_id=req.project_id or "",
-        ):
+        full = ""
+        for event in brain.talk_stream(req.question, user_id="master", project_id=req.project_id or ""):
+            if event.get("type") == "chunk":
+                full += event.get("text", "")
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        # 流式结束后写缓存
+        if full:
+            from store.cache import set as cache_set
+            cache_set(req.question, full)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+def _guest_talk(req: TalkReq, sid: str):
+    """游客: 缓存 → RAG 直出，零 LLM 成本"""
+    # 1. 查缓存
+    from store.cache import get as cache_get, set as cache_set
+    from core.rag import search as rag_search
+
+    cached = cache_get(req.question)
+    if cached:
+        Memory.session_add(sid, "ai", cached[:500])
+        if not req.stream:
+            return {"code": 0, "data": {
+                "answer": cached, "agent": {"display": "Nobody (缓存)"},
+                "skills": [], "sources": [], "is_admin": False,
+            }}
+        def cached_stream():
+            yield f"data: {json.dumps({'type':'agent','name':'Nobody (缓存)','emoji':'👤','severity':'INFO'}, ensure_ascii=False)}\n\n"
+            for i in range(0, len(cached), 50):
+                yield f"data: {json.dumps({'type':'chunk','text':cached[i:i+50]}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type':'done','sources':[]}, ensure_ascii=False)}\n\n"
+        return StreamingResponse(cached_stream(), media_type="text/event-stream")
+
+    # 2. RAG 直出
+    knowledge = rag_search(req.question)
+    if knowledge:
+        answer = f"📚 知识库检索结果：\n\n{knowledge[:1500]}"
+        cache_set(req.question, answer)
+        Memory.session_add(sid, "ai", answer[:500])
+        if not req.stream:
+            return {"code": 0, "data": {
+                "answer": answer, "agent": {"display": "Nobody (知识库)"},
+                "skills": [], "sources": [knowledge[:300]], "is_admin": False,
+            }}
+        def rag_stream():
+            yield f"data: {json.dumps({'type':'agent','name':'Nobody (知识库)','emoji':'📚','severity':'INFO'}, ensure_ascii=False)}\n\n"
+            for i in range(0, len(answer), 50):
+                yield f"data: {json.dumps({'type':'chunk','text':answer[i:i+50]}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type':'done','sources':[knowledge[:300]]}, ensure_ascii=False)}\n\n"
+        return StreamingResponse(rag_stream(), media_type="text/event-stream")
+
+    # 3. 兜底
+    fallback = "知识库中暂无相关内容。试试问：OWASP Top 10 / SQL 注入 / XSS / CVE 查询"
+    if not req.stream:
+        return {"code": 0, "data": {"answer": fallback, "agent": {"display": "Nobody"}, "skills": [], "sources": [], "is_admin": False}}
+    def fb_stream():
+        yield f"data: {json.dumps({'type':'agent','name':'Nobody','emoji':'👤','severity':'INFO'}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type':'chunk','text':fallback}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type':'done','sources':[]}, ensure_ascii=False)}\n\n"
+    return StreamingResponse(fb_stream(), media_type="text/event-stream")
 
 
 # ── Today ──

@@ -14,7 +14,8 @@ from core.planner import check as planner_check
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # 必须通过环境变量注入，默认禁用管理员功能
+ADMIN_KEY = os.getenv("ADMIN_KEY", "")
+GUEST_MODE = os.getenv("GUEST_MODE", "on").lower() != "off"
 
 # 防暴力破解 — 限速
 _admin_attempts: dict[str, list[float]] = {}
@@ -235,6 +236,8 @@ def get_skills():
 @router.post("/ask")
 def chat_ask(req: AskReq, x_admin: Optional[str] = Header(None)):
     is_admin = _verify_admin(x_admin)
+    if not is_admin and not GUEST_MODE:
+        raise HTTPException(status_code=403, detail="游客模式已关闭，请登录管理员")
     sid = req.session_id or "default"
 
     # 游客加会话缓存（多轮上下文），关网页清空
