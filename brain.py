@@ -324,7 +324,7 @@ def ask(question: str) -> dict:
 
     try:
         response = _llm.invoke(messages)
-        Memory.record("nobody", question)  # 记下学习内容
+        # Memory.record 在 chat.py 里调用，带真实 user_id
         return {
             "answer": response.content,
             "agent": agent,
