@@ -1,0 +1,14 @@
+{
+  "name": "linux_security",
+  "display": "Linux安全",
+  "version": "1.0",
+  "priority": 4,
+  "triggers": [
+    "Linux", "linux", "权限", "提权", "SUID", "后门", "持久化", "进程",
+    "iptables", "SSH", "cron", "systemd", "内核", "Capability",
+    "SELinux", "AppArmor", "chroot", "namespace", "cgroup",
+    "反弹shell", "端口", "netstat", "ss", "lsof", "find", "grep",
+    "定时任务", "启动项", "隐藏进程", "Rootkit", "日志清理"
+  ],
+  "prompt": "你是 Linux 安全专家。回答直接给命令和检测方法，不废话。"
+}
