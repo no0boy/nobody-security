@@ -25,6 +25,18 @@ router = APIRouter(prefix="/api/conversation", tags=["conversation"])
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 GUEST_MODE = os.getenv("GUEST_MODE", "on").lower() != "off"  # 默认开启
 
+# ── 调试端点（仅本地/排查用）──
+
+@router.get("/debug")
+def debug_info():
+    """查看当前配置状态（不泄露完整 Key）"""
+    return {
+        "admin_key_set": bool(ADMIN_KEY),
+        "admin_key_len": len(ADMIN_KEY),
+        "guest_mode": GUEST_MODE,
+        "auth_endpoint": "/api/conversation/talk",
+    }
+
 
 def _verify_admin(x_admin: Optional[str]) -> bool:
     if not x_admin or not x_admin == ADMIN_KEY:
