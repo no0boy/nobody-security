@@ -1,118 +1,53 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>Nobody — Security Partner</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0a0a0a; color: #e0e0e0; font-family: 'Consolas','Courier New',monospace; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    .card { width: 400px; padding: 40px; border: 1px solid #1a1a2e; border-radius: 8px; background: #111; }
-    .logo { text-align: center; font-size: 48px; margin-bottom: 16px; }
-    h1 { text-align: center; font-size: 22px; margin-bottom: 4px; color: #00ff88; }
-    .sub { text-align: center; font-size: 12px; color: #666; margin-bottom: 24px; }
-    .btn { width: 100%; padding: 12px; border: 1px solid #333; border-radius: 6px; cursor: pointer; font-size: 14px; font-family: inherit; margin-bottom: 8px; }
-    .btn-primary { background: #00ff88; color: #000; border: none; font-weight: bold; }
-    .btn-outline { background: transparent; color: #00ff88; border-color: #00ff88; }
-    .btn-ghost { background: transparent; color: #666; border-color: #333; font-size: 12px; }
-    .input { width: 100%; padding: 10px 14px; background: #0a0a0a; border: 1px solid #333; border-radius: 6px; color: #e0e0e0; font-family: inherit; font-size: 13px; margin-bottom: 8px; display: none; }
-    .input:focus { border-color: #00ff88; outline: none; }
-    .err { color: #ff4444; text-align: center; font-size: 12px; margin-top: 8px; display: none; }
-    .ok { color: #00ff88; text-align: center; font-size: 12px; margin-top: 8px; display: none; }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#0a0a0a;color:#e0e0e0;font-family:'Consolas','Courier New',monospace;display:flex;align-items:center;justify-content:center;min-height:100vh}
+    .card{width:400px;padding:40px;border:1px solid #1a1a2e;border-radius:8px;background:#111;text-align:center}
+    .logo{font-size:48px;margin-bottom:16px}
+    h1{font-size:22px;color:#00ff88;margin-bottom:4px}
+    .sub{font-size:12px;color:#666;margin-bottom:24px}
+    .btn{width:100%;padding:14px;background:#00ff88;color:#000;border:none;border-radius:6px;cursor:pointer;font-size:16px;font-weight:bold;font-family:inherit;margin-bottom:8px}
+    .btn:hover{opacity:0.8}
+    .btn-outline{background:transparent;color:#00ff88;border:1px solid #00ff88}
+    input{width:100%;padding:10px;background:#0a0a0a;border:1px solid #333;border-radius:6px;color:#e0e0e0;font-family:inherit;font-size:13px;margin-bottom:8px;text-align:center;display:none}
+    input:focus{border-color:#00ff88;outline:none}
+    .tagline{font-size:11px;color:#444;margin-top:12px}
+    .err{color:#ff4444;font-size:12px;margin-top:8px;display:none}
   </style>
 </head>
 <body>
 <div class="card">
   <div class="logo">👤</div>
   <h1>Nobody</h1>
-  <div class="sub">Security Partner · v1.5</div>
-
+  <div class="sub">no0boy 的安全搭档 · v2.0</div>
   <div class="err" id="err"></div>
-  <div class="ok" id="ok"></div>
 
-  <!-- 未展开时的三个入口 -->
-  <div id="menu">
-    <button class="btn btn-primary" onclick="guest()">🚀 游客体验</button>
-    <p style="font-size:10px;color:#444;text-align:center;margin-bottom:8px;">使用公共知识库，不留私人记忆</p>
+  <button class="btn" onclick="enterGuest()">进入（游客）</button>
+  <button class="btn btn-outline" onclick="showAdmin()">管理员</button>
+  <input type="password" id="pwd" placeholder="管理员密码" onkeydown="if(event.key==='Enter')enterAdmin()">
+  <button class="btn" id="adminBtn" onclick="enterAdmin()" style="display:none;">以管理员进入</button>
 
-    <button class="btn btn-outline" onclick="showForm('login')">🔑 登录</button>
-    <button class="btn btn-ghost" onclick="showForm('register')">📝 注册新账号</button>
-  </div>
-
-  <!-- 登录/注册表单 -->
-  <div id="form" style="display:none;">
-    <input type="text" class="input" id="username" placeholder="用户名">
-    <input type="password" class="input" id="password" placeholder="密码">
-    <button class="btn btn-primary" id="formBtn" onclick="">确认</button>
-    <button class="btn btn-ghost" onclick="showMenu()">← 返回</button>
-  </div>
+  <div class="tagline">游客可体验 · 管理员管理记忆和知识</div>
 </div>
 
 <script>
-let mode = '';
-
-async function guest() {
-  const r = await fetch('/api/auth/guest', { method: 'POST' });
-  const d = await r.json();
-  if (d.code === 0) saveAndGo(d);
-}
-
-function showForm(m) {
-  mode = m;
-  document.getElementById('menu').style.display = 'none';
-  document.getElementById('form').style.display = 'block';
-  document.getElementById('username').style.display = 'block';
-  document.getElementById('password').style.display = 'block';
-  document.getElementById('formBtn').onclick = submitForm;
-  document.getElementById('formBtn').textContent = m === 'login' ? '登 录' : '注 册';
-  document.getElementById('err').style.display = 'none';
-}
-
-function showMenu() {
-  document.getElementById('menu').style.display = 'block';
-  document.getElementById('form').style.display = 'none';
-  hideInputs();
-}
-
-function hideInputs() {
-  document.getElementById('username').style.display = 'none';
-  document.getElementById('password').style.display = 'none';
-}
-
-async function submitForm() {
-  const u = document.getElementById('username').value.trim();
-  const p = document.getElementById('password').value.trim();
-  if (!u || !p) { showErr('请填写完整'); return; }
-
-  const url = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
-  const r = await fetch(url, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({username: u, password: p})
-  });
-  const d = await r.json();
-  if (d.code === 0) {
-    if (mode === 'register') {
-      document.getElementById('ok').textContent = '注册成功！点击登录进入';
-      document.getElementById('ok').style.display = 'block';
-      document.getElementById('err').style.display = 'none';
-      showMenu();
-    } else {
-      saveAndGo(d);
-    }
-  } else {
-    showErr(d.message);
-  }
-}
-
-function saveAndGo(d) {
-  localStorage.setItem('token', d.data.token);
-  localStorage.setItem('user', JSON.stringify(d.data.user));
+function enterGuest() {
+  localStorage.removeItem('admin_key');
   window.location.href = 'index.html';
 }
-
-function showErr(m) {
-  document.getElementById('err').textContent = m;
-  document.getElementById('err').style.display = 'block';
+function showAdmin() {
+  document.getElementById('pwd').style.display = 'block';
+  document.getElementById('adminBtn').style.display = 'block';
+}
+function enterAdmin() {
+  const pwd = document.getElementById('pwd').value;
+  // 服务端验证管理员身份，前端只是传递 X-Admin header
+  localStorage.setItem('admin_key', pwd);
+  window.location.href = 'index.html';
 }
 </script>
 </body>

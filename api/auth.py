@@ -1,66 +1,14 @@
-"""JWT登录 + 注册（SQLite持久化）"""
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
-from jose import jwt, JWTError
-import hashlib, os, json, sqlite3
-from datetime import datetime, timedelta
+"""Nobody 身份 — 单用户，不需要登录"""
+from fastapi import Depends
+from fastapi.security import HTTPBearer
+from jose import jwt
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
-security = HTTPBearer()
+SECRET = "nobody-secret-2025"
+security = HTTPBearer(auto_error=False)
 
-SECRET_KEY = "nobody-secret-key-2025"
-USER_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "users.db")
+def get_current_user(creds=None):
+    """Nobody 只有一个用户"""
+    return "nobody"
 
-def _user_db():
-    conn = sqlite3.connect(USER_DB)
-    conn.execute("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)")
-    # 唯一账号
-    try: conn.execute("INSERT INTO users VALUES (?,?)", ("nobody", hashlib.sha256("nobody2025".encode()).hexdigest()))
-    except: pass
-    conn.commit()
-    return conn
-
-def create_token(username: str) -> str:
-    payload = {"sub": username, "exp": datetime.utcnow() + timedelta(hours=72)}
-    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
-
-class LoginReq(BaseModel):
-    username: str
-    password: str
-
-@router.post("/register")
-def register(req: LoginReq):
-    if len(req.username) < 2 or len(req.password) < 4:
-        return {"code": 400, "message": "用户名至少2字，密码至少4位"}
-    db = _user_db()
-    try:
-        db.execute("INSERT INTO users VALUES (?,?)",
-                   (req.username, hashlib.sha256(req.password.encode()).hexdigest()))
-        db.commit()
-        return {"code": 0, "data": {"token": create_token(req.username), "user": {"username": req.username}}}
-    except sqlite3.IntegrityError:
-        return {"code": 400, "message": "用户名已存在"}
-    finally:
-        db.close()
-
-@router.post("/guest")
-def guest_login():
-    """游客模式 — 无需注册，直接进入。可读公共知识，不保存记忆。"""
-    return {"code": 0, "data": {"token": create_token("guest"), "user": {"username": "guest", "role": "guest"}}}
-
-@router.post("/login")
-def login(req: LoginReq):
-    db = _user_db()
-    row = db.execute("SELECT password FROM users WHERE username=?", (req.username,)).fetchone()
-    db.close()
-    if row and row[0] == hashlib.sha256(req.password.encode()).hexdigest():
-        return {"code": 0, "data": {"token": create_token(req.username), "user": {"username": req.username}}}
-    return {"code": 401, "message": "用户名或密码错误"}
-
-def get_current_user(creds: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        payload = jwt.decode(creds.credentials, SECRET_KEY, algorithms=["HS256"])
-        return payload.get("sub", "unknown")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Token无效")
+def create_token():
+    return jwt.encode({"sub": "nobody"}, SECRET, algorithm="HS256")

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Nobody — 管理</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#0a0a0a;color:#e0e0e0;font-family:'Consolas',monospace;padding:40px;max-width:800px;margin:0 auto}
+    h1{color:#00ff88;margin-bottom:8px}
+    .sub{color:#666;font-size:12px;margin-bottom:24px}
+    .section{background:#111;border:1px solid #1a1a2e;border-radius:8px;padding:20px;margin-bottom:16px}
+    .section h2{font-size:14px;color:#ff8800;margin-bottom:12px}
+    textarea{width:100%;height:120px;background:#0a0a0a;color:#e0e0e0;border:1px solid #333;border-radius:6px;padding:10px;font-family:inherit;font-size:12px;resize:vertical}
+    .btn{padding:8px 16px;background:#00ff88;color:#000;border:none;border-radius:4px;cursor:pointer;font-family:inherit}
+    .btn-sm{padding:4px 10px;font-size:11px}
+    .list{margin-top:10px;font-size:12px}
+    .list div{padding:6px 0;border-bottom:1px solid #1a1a2e;display:flex;justify-content:space-between;align-items:center}
+    .back{color:#666;text-decoration:none;font-size:12px}
+  </style>
+</head>
+<body>
+<h1>Nobody 管理</h1>
+<div class="sub">Master only · 核心记忆 + 知识库管理</div>
+<a href="index.html" class="back">← 返回聊天</a>
+
+<div class="section">
+  <h2>🧠 核心记忆（Core Memory）</h2>
+  <div class="list" id="coreList">加载中...</div>
+  <textarea id="coreText" placeholder="记住 xxx" style="margin-top:10px;height:40px;"></textarea>
+  <button class="btn btn-sm" onclick="saveCore()">保存</button>
+</div>
+
+<div class="section">
+  <h2>📚 知识库（Knowledge）</h2>
+  <div class="list" id="knowList">加载中...</div>
+  <textarea id="knowText" placeholder="知识 xxx" style="margin-top:10px;height:40px;"></textarea>
+  <button class="btn btn-sm" onclick="saveKnow()">保存</button>
+</div>
+
+<div class="section">
+  <h2>🎯 主动规划</h2>
+  <div class="list" id="planner">加载中...</div>
+</div>
+
+<script>
+const KEY = localStorage.getItem('admin_key') || '';
+if (KEY !== 'nobody2025') { document.body.innerHTML = '<h1 style="color:#ff4444">仅管理员可访问</h1><a href="login.html">返回登录</a>'; }
+
+async function load() {
+  const h = { 'X-Admin': KEY };
+  try {
+    const r = await fetch('/api/chat/welcome', { headers: h });
+    const d = await r.json();
+    if (d.code === 0 && d.data) {
+      const core = d.data.core_memory || {};
+      document.getElementById('coreList').innerHTML = Object.entries(core).map(([k,v]) =>
+        `<div><span>${k}: ${JSON.stringify(v).slice(0,80)}</span><button class="btn btn-sm" onclick="delCore('${k}')">删</button></div>`
+      ).join('') || '空';
+    }
+  } catch(e) {}
+
+  try {
+    const r = await fetch('/api/chat/planner', { headers: h });
+    const d = await r.json();
+    if (d.code === 0 && d.data.suggestions) {
+      document.getElementById('planner').innerHTML = d.data.suggestions.map(s => `<div>${s}</div>`).join('');
+    }
+  } catch(e) {}
+}
+
+async function saveCore() {
+  const v = document.getElementById('coreText').value.trim();
+  if (!v) return;
+  await fetch('/api/chat/remember', {
+    method: 'POST', headers: { 'Content-Type':'application/json','X-Admin':KEY },
+    body: JSON.stringify({question: '记住 '+v, stream: false})
+  });
+  document.getElementById('coreText').value = '';
+  load();
+}
+
+async function saveKnow() {
+  const v = document.getElementById('knowText').value.trim();
+  if (!v) return;
+  await fetch('/api/chat/remember', {
+    method: 'POST', headers: { 'Content-Type':'application/json','X-Admin':KEY },
+    body: JSON.stringify({question: '知识 '+v, stream: false})
+  });
+  document.getElementById('knowText').value = '';
+  load();
+}
+
+load();
+</script>
+</body>
+</html>

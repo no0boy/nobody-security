@@ -33,7 +33,8 @@
 <div class="header">
   <div class="dot"></div>
   <span class="title">Nobody</span>
-  <span style="color:#555;font-size:12px;">online</span>
+  <span style="color:#555;font-size:12px;" id="modeLabel">游客</span>
+  <a href="admin.html" id="adminLink" style="margin-left:8px;font-size:10px;color:#00ff88;text-decoration:none;display:none;">管理</a>
   <span style="margin-left:auto;font-size:11px;color:#555;cursor:pointer;" onclick="logout()">exit</span>
 </div>
 
@@ -57,10 +58,19 @@
 <div class="input-area">
   <input id="q" placeholder="向 Nobody 提问..." onkeydown="if(event.key==='Enter')send()">
   <button onclick="send()">发送</button>
+  <button onclick="pushToFeishu()" title="推送到飞书" style="background:#1a1a2e;color:#00ff88;border:1px solid #00ff88;font-size:11px;padding:10px 12px;">📱</button>
 </div>
 
 <script>
-function logout() { localStorage.clear(); window.location.href = 'login.html'; }
+const ADMIN_KEY = localStorage.getItem('admin_key') || '';
+const IS_ADMIN = ADMIN_KEY === 'nobody2025';
+if (IS_ADMIN) {
+  document.getElementById('modeLabel').textContent = 'Master';
+  document.getElementById('modeLabel').style.color = '#ff8800';
+  document.getElementById('adminLink').style.display = 'inline';
+}
+
+function logout() { localStorage.removeItem('admin_key'); window.location.href = 'login.html'; }
 
 async function send() {
   const q = document.getElementById('q');
@@ -86,10 +96,9 @@ async function send() {
   let full = '';
 
   try {
-    const token = localStorage.getItem('token');
     const res = await fetch('/api/chat/ask', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json', 'X-Admin': IS_ADMIN ? ADMIN_KEY : '' },
       body: JSON.stringify({ question: text, stream: true })
     });
 
@@ -128,6 +137,22 @@ async function send() {
 }
 
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+async function pushToFeishu() {
+  const openId = prompt('飞书用户 open_id（在飞书后台用户列表查）：');
+  if (!openId) return;
+  const bubbles = document.querySelectorAll('.ai .bubble');
+  const last = bubbles.length ? bubbles[bubbles.length-1].textContent : '';
+  if (!last || last.length < 2) { alert('没有可推送的内容，先问 Nobody 一个问题吧'); return; }
+  try {
+    const r = await fetch('/api/webhook/send', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({open_id: openId, text: last.slice(0,500)})
+    });
+    const d = await r.json();
+    alert(d.msg === 'ok' ? '已推送到飞书！' : '失败：' + (d.msg || '未知'));
+  } catch(e) { alert('推送失败'); }
+}
 </script>
 </body>
 </html>

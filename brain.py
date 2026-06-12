@@ -1,536 +1,104 @@
 """
-Nobody — Security Partner 核心大脑
-v1.0 : 加载配置 → 意图匹配 → RAG检索 → LLM生成
+Nobody — Security Partner 大脑（协调器）
+脑模块: core/persona | core/memory | core/rag | core/router | core/planner
 """
 
-import json
-import os
-import sys
-
-# 加项目根目录到 path
+import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
-from datetime import datetime
-import sqlite3
 
-# ========== 五维记忆系统 ==========
+from core.persona import name as persona_name, greeting, tone
+from core.memory import Memory
+from core.rag import search as rag_search, init_knowledge
+from core.router import classify as agent_classify, match_skills
+from core.planner import check as planner_check
 
-MEMORY_DB = os.path.join(os.path.dirname(__file__), "memory.db")
-
-def _mem_db():
-    conn = sqlite3.connect(MEMORY_DB)
-    conn.execute("""CREATE TABLE IF NOT EXISTS memories (
-        user_id TEXT, type TEXT, key TEXT, value TEXT,
-        updated_at TEXT, PRIMARY KEY (user_id, type, key))""")
-    return conn
-
-class Memory:
-    """
-    五维记忆 — 按用户隔离
-
-    游客(guest) → 不写入任何记忆，每次对话匿名
-    注册用户     → 独立记忆空间，互不可见
-    nobody      → 主人，同时可维护公共知识层(knowledge/public/)
-    """
-
-    @staticmethod
-    def set(user_id, mem_type, key, value):
-        db = _mem_db()
-        db.execute("INSERT OR REPLACE INTO memories VALUES (?,?,?,?,?)",
-                   (user_id, mem_type, key, json.dumps(value, ensure_ascii=False),
-                    datetime.now().isoformat()))
-        db.commit(); db.close()
-
-    @staticmethod
-    def get(user_id, mem_type, key=None):
-        db = _mem_db()
-        if key:
-            row = db.execute("SELECT value FROM memories WHERE user_id=? AND type=? AND key=?",
-                             (user_id, mem_type, key)).fetchone()
-            db.close()
-            return json.loads(row[0]) if row else None
-        rows = db.execute("SELECT key, value FROM memories WHERE user_id=? AND type=?",
-                          (user_id, mem_type)).fetchall()
-        db.close()
-        return {r[0]: json.loads(r[1]) for r in rows}
-
-    @staticmethod
-    def welcome(user_id):
-        p = Memory.get(user_id, "profile", "base") or {}
-        if not p:
-            return {"is_new": True, "msg": "👤 Nobody 在线。你是谁？\n告诉我：称呼,方向,水平\n例：「no0boy,红队,入门」"}
-        learn = list((Memory.get(user_id, "learning") or {}).keys())[-5:]
-        goals = list((Memory.get(user_id, "goals") or {}).keys())[:3]
-        return {"is_new": False, "profile": p,
-                "recent": learn, "goals": goals,
-                "msg": f"👤 {p.get('name','')}，欢迎回来。\n📚 最近：{', '.join(learn) if learn else '暂无'}\n🎯 目标：{', '.join(goals) if goals else '未设定'}"}
-
-    @staticmethod
-    def try_parse(user_id, text):
-        if Memory.get(user_id, "profile", "base"): return None
-        parts = text.replace("，",",").replace("、",",").split(",")
-        if len(parts) >= 2:
-            p = {"name": parts[0].strip(), "direction": parts[1].strip(),
-                 "level": parts[2].strip() if len(parts) > 2 else "入门"}
-            Memory.set(user_id, "profile", "base", p)
-            return p
-        return None
-
-    @staticmethod
-    def record(user_id, question):
-        for w in ["SQL注入","XSS","SSRF","RCE","提权","渗透","红队","蓝队","漏洞","CVE",
-                  "OWASP","Burp","Nmap","Linux","Python","WAF","日志","应急","CTF","靶场",
-                  "代码审计","防御","加密","免杀","社工","内网","域控"]:
-            if w in question:
-                Memory.set(user_id, "learning", w,
-                          {"last": datetime.now().isoformat()})
-                break
-
-# ========== 加载配置 ==========
-
-def _load_json(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-_persona = _load_json(os.path.join(os.path.dirname(__file__), "persona.json"))
-_provider = _load_json(os.path.join(os.path.dirname(__file__), "provider.json"))
-
-AGENT_DIR = os.path.join(os.path.dirname(__file__), "agents")
-SKILL_DIR = os.path.join(os.path.dirname(__file__), "skills")
-
-def _load_jsons(directory):
-    """加载目录下所有json文件"""
-    if not os.path.exists(directory):
-        return []
-    return [_load_json(os.path.join(directory, f)) for f in os.listdir(directory) if f.endswith(".json")]
-
-_agents = _load_jsons(AGENT_DIR)
-_skills = _load_jsons(SKILL_DIR)
-
-# ========== 初始化模型 ==========
+# ========== 模型初始化 ==========
 
 _llm = None
 
 def _resolve_env(val):
-    """${VAR} → 环境变量值"""
     if isinstance(val, str) and val.startswith("${") and val.endswith("}"):
         return os.getenv(val[2:-1], "")
     return val
 
 def _init_llm():
     global _llm
-    key = _resolve_env(_provider.get("api_key", ""))
+    path = os.path.join(os.path.dirname(__file__), "provider.json")
+    with open(path, "r", encoding="utf-8") as f:
+        p = json.load(f)
+    key = _resolve_env(p.get("api_key", ""))
     if not key or len(key) < 4:
-        _llm = None
-        return
-    _llm = ChatOpenAI(
-        model=_provider.get("model", "deepseek-chat"),
-        api_key=key,
-        base_url=_provider.get("base_url", "https://api.deepseek.com/v1"),
-        temperature=0.7,
-        max_tokens=2048
-    )
+        _llm = None; return
+    _llm = ChatOpenAI(model=p.get("model","deepseek-chat"), api_key=key,
+                      base_url=p.get("base_url","https://api.deepseek.com/v1"),
+                      temperature=0.7, max_tokens=2048)
 
 _init_llm()
 
-# ========== 意图匹配 ==========
-
-def assess_severity(question: str) -> dict:
-    """安全事件严重度评估 — 关键词 + LLM 双重判断"""
-    # 关键词快速通道：省一次 LLM 调用
-    p0_words = ["被攻击", "入侵了", "勒索", "挖矿", "webshell", "被黑了", "数据泄露", "正在扫描"]
-    p1_words = ["漏洞", "SQL注入", "XSS", "RCE", "提权", "后门", "异常进程", "可疑", "SSRF", "XXE"]
-    p2_words = ["OWASP", "CVE", "渗透", "安全", "攻击手法", "防御", "加密", "注入", "攻防"]
-
-    q_lower = question.lower()
-    for w in p0_words:
-        if w.lower() in q_lower:
-            return {"is_security": True, "severity": "P0", "reason": f"关键词匹配：{w}"}
-    for w in p1_words:
-        if w.lower() in q_lower:
-            return {"is_security": True, "severity": "P1", "reason": f"关键词匹配：{w}"}
-    for w in p2_words:
-        if w.lower() in q_lower:
-            return {"is_security": True, "severity": "P2", "reason": f"关键词匹配：{w}"}
-
-    return {"is_security": False, "severity": "INFO", "reason": ""}
-
-
-def classify(question: str) -> dict:
-    """匹配最合适的Agent + 严重度评估"""
-    best = None
-    best_score = 0
-    for agent in _agents:
-        score = sum(1 for kw in agent.get("triggers", []) if kw.lower() in question.lower())
-        if score > best_score:
-            best_score = score
-            best = agent
-
-    if best is None:
-        best = {"name": "nobody", "display": "Nobody", "emoji": "👤", "prompt": _persona.get("voice", {}).get("greeting", "Nobody 在线。")}
-
-    # 安全事件评估
-    sev = assess_severity(question)
-    best["severity"] = sev.get("severity", "INFO")
-    best["sev_reason"] = sev.get("reason", "")
-    best["is_security"] = sev.get("is_security", False)
-
-    return best
-
-def match_skills(question: str) -> list:
-    """匹配相关技能并执行工具函数"""
-    matched = []
-    for skill in _skills:
-        score = sum(1 for kw in skill.get("triggers", []) if kw.lower() in question.lower())
-        if score > 0:
-            s = {**skill, "score": score}
-            # 执行技能的工具（如果有）
-            tools_result = []
-            for tool_name in skill.get("tools", []):
-                fn = _get_tool_fn(tool_name)
-                if fn:
-                    try:
-                        tools_result.append(fn(question))
-                    except Exception:
-                        pass
-            s["tools_result"] = tools_result
-            matched.append(s)
-    matched.sort(key=lambda x: x.get("score", 0), reverse=True)
-    return matched
-
-
-def _get_tool_fn(name: str):
-    """工具函数注册表 — 映射工具名到函数"""
-    import urllib.request, json as _json
-
-    def cve_lookup(q):
-        try:
-            kw = q.split()[-1] if q.split() else q
-            url = f"https://cve.circl.lu/api/cve/{kw}"
-            req = urllib.request.Request(url, headers={"User-Agent": "Nobody/1.0"})
-            resp = urllib.request.urlopen(req, timeout=3)
-            data = _json.loads(resp.read().decode())
-            return f"CVE-{kw}: {data.get('summary', '无描述')[:200]}"
-        except Exception:
-            return None
-
-    def sqli_detect(q):
-        indicators = ["'", "\"", "OR 1=1", "UNION SELECT", "--"]
-        found = [i for i in indicators if i.lower() in q.lower()]
-        return f"检测到SQL注入特征：{', '.join(found)}" if found else "未检测到明显SQL注入特征"
-
-    _tools = {
-        "cve_lookup": cve_lookup,
-        "sqli_detect": sqli_detect,
-    }
-    return _tools.get(name)
-
-# ========== RAG 检索 ==========
-
-def _rag_search(question: str) -> str:
-    """语义检索：ChromaDB 向量相似度 + BM25 关键词融合"""
-    try:
-        from services.hybrid_search import build_index, hybrid_search
-
-        build_index()
-        results = hybrid_search(question, top_k=5)
-        if results:
-            return "\n---\n".join([r.get("content", "")[:500] for r in results])
-    except Exception:
-        pass
-
-    # 降级：ChromaDB 原生语义搜索
-    try:
-        import chromadb
-        client = chromadb.PersistentClient(path=os.path.join(os.path.dirname(__file__), "chroma_data"))
-        collection = client.get_or_create_collection(name="nobody_knowledge")
-        emb = _embed_text(question)
-        results = collection.query(query_embeddings=[emb], n_results=3, include=["documents"])
-        if results["documents"] and results["documents"][0]:
-            return "\n---\n".join([d[:500] for d in results["documents"][0]])
-    except Exception:
-        pass
-    return ""
-
-# ========== 知识库初始化 ==========
-
-def _embed_text(text: str) -> list:
-    """文本向量化 — 用 ChromaDB 内置模型"""
-    import chromadb.utils.embedding_functions as ef
-    fn = ef.DefaultEmbeddingFunction()
-    return fn([text])[0]
-
-
-def init_knowledge():
-    """启动时加载知识库 — 切片→向量化→入库"""
-    import chromadb
-
-    persist_dir = os.path.join(os.path.dirname(__file__), "chroma_data")
-    client = chromadb.PersistentClient(path=persist_dir)
-    collection = client.get_or_create_collection(
-        name="nobody_knowledge",
-        metadata={"hnsw:space": "cosine"}
-    )
-
-    if collection.count() > 0:
-        return
-
-    print("[Nobody] 知识库为空，开始切片→向量化→入库...")
-    count = 0
-
-    for subdir in ["seeds", "public"]:
-        src = os.path.join(os.path.dirname(__file__), "knowledge", subdir)
-        if not os.path.exists(src):
-            continue
-        for root, dirs, files in os.walk(src):
-            for f in files:
-                if not f.endswith((".txt", ".md")):
-                    continue
-                fp = os.path.join(root, f)
-                try:
-                    with open(fp, "r", encoding="utf-8") as fh:
-                        text = fh.read()
-                except Exception:
-                    continue
-                rel = os.path.relpath(fp, os.path.join(os.path.dirname(__file__), "knowledge"))
-                is_public = subdir == "public"
-
-                # 切片 + 向量化
-                chunks = [text[i:i+500] for i in range(0, len(text), 500)]
-                for j, chunk in enumerate(chunks):
-                    try:
-                        emb = _embed_text(chunk)
-                        collection.add(
-                            ids=[f"{rel}_chunk_{j}"],
-                            embeddings=[emb],
-                            documents=[chunk],
-                            metadatas=[{"source": rel, "chunk": j, "public": is_public}]
-                        )
-                        count += 1
-                    except Exception as e:
-                        print(f"  向量化失败 {rel} chunk {j}: {e}")
-
-    print(f"[Nobody] 已入库 {count} 个向量化知识片段")
-
-# ========== v1.8 Planner 主动规划 ==========
-
-def planner_check(user_id: str) -> dict:
-    """检查学习状态，生成主动建议"""
-    learning = Memory.get(user_id, "learning") or {}
-    goals = Memory.get(user_id, "goals") or {}
-    profile = Memory.get(user_id, "profile", "base") or {}
-
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    # 1. 计算距离上次学习的天数
-    days_since = 999
-    for k, v in learning.items():
-        last = v.get("last", "")
-        if last:
-            try:
-                last_date = datetime.strptime(last[:10], "%Y-%m-%d")
-                days = (datetime.now() - last_date).days
-                if days < days_since:
-                    days_since = days
-            except:
-                pass
-
-    # 2. 生成建议
-    suggestions = []
-    if days_since >= 3:
-        recent = list(learning.keys())[-3:] if learning else []
-        if recent:
-            suggestions.append(f"你已经 {days_since} 天没学习了。上次学了 {', '.join(recent)}，继续？")
-
-    # 学习路线推荐
-    roadmap = {
-        "SQL注入": ["XSS", "命令注入", "SSRF"],
-        "XSS": ["CSRF", "CORS漏洞", "DOM XSS"],
-        "提权": ["Linux提权", "Windows提权", "AD域提权"],
-        "渗透": ["信息收集", "漏洞扫描", "漏洞利用", "后渗透"],
-    }
-    for topic in list(learning.keys())[-3:]:
-        if topic in roadmap:
-            for next_topic in roadmap[topic]:
-                if next_topic not in learning:
-                    suggestions.append(f"🎯 学完 {topic} 后，建议学 {next_topic}（同一知识链）")
-                    break
-
-    return {
-        "days_since_last": days_since,
-        "suggestions": suggestions[:3],
-        "recent_topics": list(learning.keys())[-5:] if learning else [],
-        "goals": list(goals.keys())[:3] if goals else [],
-    }
-
-
-# ========== v1.9 多Agent协作 ==========
-
-def multi_agent_think(question: str) -> dict:
-    """
-    复杂问题 → 多Agent链式分析 → 综合回答
-    威胁研判先分析 → 漏洞研究员查细节 → 应急处置给方案
-    """
-    agent1 = classify(question)
-    agents_to_run = [agent1]
-
-    # 如果是P0/P1安全事件，追加协作Agent
-    if agent1.get("severity") in ("P0", "P1"):
-        # 追加漏洞研究员和应急处置
-        for a in _agents:
-            if a.get("name") not in [agent1.get("name")]:
-                if agent1.get("severity") == "P0" and a.get("name") in ("vuln_researcher",):
-                    agents_to_run.append(a)
-                elif agent1.get("severity") == "P1" and a.get("name") in ("vuln_researcher",):
-                    agents_to_run.append(a)
-
-    if len(agents_to_run) == 1:
-        return ask(question)
-
-    # 链式分析
-    analyses = []
-    for i, agent in enumerate(agents_to_run[:2]):  # 最多2个Agent协作
-        global current_system_prompt
-        saved = current_system_prompt
-        current_system_prompt = agent.get("prompt", "")
-
-        context = _rag_search(question)
-        prompt = f"{agent.get('display','')} 视角分析以下问题：\n\n{question}\n\n参考知识：{context}\n\n分析要点：{'判断威胁类型和严重度' if i==0 else '给出技术细节和防御方案'}"
-        messages = [SystemMessage(content=current_system_prompt), HumanMessage(content=prompt)]
-
-        try:
-            resp = _llm.invoke(messages) if _llm else None
-            if resp:
-                analyses.append(f"【{agent.get('display','')}分析】\n{resp.content[:300]}")
-        except:
-            pass
-        finally:
-            current_system_prompt = saved
-
-    # 综合回答
-    if analyses:
-        combined = "\n\n".join(analyses)
-        summary_prompt = f"以下是多个安全专家的分析，请综合成一份简洁回答：\n\n{combined}\n\n用户问题：{question}\n\n综合回答："
-        try:
-            resp = _llm.invoke([HumanMessage(content=summary_prompt)]) if _llm else None
-            answer = resp.content if resp else combined
-        except:
-            answer = combined
-    else:
-        result = ask(question)
-        answer = result.get("answer", "")
-
-    return {
-        "answer": answer,
-        "agents_used": [a.get("display", "") for a in agents_to_run],
-        "collaborative": len(agents_to_run) > 1,
-        "sources": [],
-    }
-
-
 # ========== 核心问答 ==========
 
-SYSTEM_PROMPT = """你是 {name}（{display}）。
-{persona_prompt}
+SYSTEM_PROMPT = """你是 {name}。{persona_prompt}
+语气要求：{tone}
+参考知识：{context}
+规则：1.优先基于参考知识 2.不知道就说不知道 3.严格按语气要求"""
 
-当前语气要求：{tone}
-
-知识库参考：
-{context}
-
-回答规则：
-1. 优先基于参考知识回答
-2. 知识库里没有的，诚实告知
-3. 严格按照当前语气要求回答
-"""
-
-def ask(question: str) -> dict:
-    """核心问答流程"""
-    agent = classify(question)
+def ask(question: str, user_id: str = "guest") -> dict:
+    agent = agent_classify(question)
     skills = match_skills(question)
-    context = _rag_search(question)
+    context = rag_search(question)
 
-    # 构建 Prompt
-    persona_prompt = agent.get("prompt", _persona.get("voice", {}).get("greeting", ""))
-    sev = agent.get("severity", "INFO")
-    tone = _persona.get("tones", {}).get(sev, _persona.get("style", "直接"))
-    system = SYSTEM_PROMPT.format(
-        name=_persona["name"],
-        display=agent.get("display", "Nobody"),
-        persona_prompt=persona_prompt,
-        context=context if context else "（知识库中暂无相关内容）",
-        tone=tone
-    )
+    msg = [SystemMessage(content=SYSTEM_PROMPT.format(
+        name=persona_name(), persona_prompt=agent.get("prompt",""),
+        tone=tone(agent.get("severity","INFO")), context=context or "无"
+    ))]
+    msg.append(HumanMessage(content=question))
 
-    messages = [SystemMessage(content=system)]
-    messages.append(HumanMessage(content=question))
-
-    # 调大模型
-    if _llm is None:
-        return {
-            "answer": "Nobody 大脑未连接。请配置 provider.json 中的 API Key。",
-            "agent": agent,
-            "skills": skills,
-            "sources": []
-        }
-
+    if _llm is None: return {"answer": "大脑未连接。","agent":agent,"skills":skills,"sources":[]}
     try:
-        response = _llm.invoke(messages)
-        # Memory.record 在 chat.py 里调用，带真实 user_id
-        return {
-            "answer": response.content,
-            "agent": agent,
-            "skills": skills,
-            "sources": [context[:300]] if context else []
-        }
+        resp = _llm.invoke(msg)
+        return {"answer": resp.content, "agent": agent, "skills": skills, "sources": [context[:300]] if context else []}
     except Exception as e:
-        return {
-            "answer": f"处理失败：{str(e)[:200]}",
-            "agent": agent,
-            "skills": skills,
-            "sources": []
-        }
+        return {"answer": f"处理失败：{str(e)[:200]}", "agent": agent, "skills": skills, "sources": []}
 
-def ask_stream(question: str):
-    """流式问答"""
-    agent = classify(question)
+def ask_stream(question: str, user_id: str = "guest"):
+    agent = agent_classify(question)
     skills = match_skills(question)
-    context = _rag_search(question)
+    context = rag_search(question)
 
-    persona_prompt = agent.get("prompt", "")
-    sev = agent.get("severity", "INFO")
-    tone = _persona.get("tones", {}).get(sev, _persona.get("style", "直接"))
-    system = SYSTEM_PROMPT.format(
-        name=_persona["name"],
-        display=agent.get("display", "Nobody"),
-        persona_prompt=persona_prompt,
-        context=context if context else "（知识库中暂无相关内容）",
-        tone=tone
-    )
-
-    messages = [SystemMessage(content=system)]
-    messages.append(HumanMessage(content=question))
-
-    yield {"type": "agent", "name": agent.get("display", "Nobody"), "emoji": agent.get("emoji", "👤"),
-           "severity": agent.get("severity", "INFO"), "sev_reason": agent.get("sev_reason", "")}
+    yield {"type":"agent","name":agent.get("display","Nobody"),"emoji":agent.get("emoji","👤"),
+           "severity":agent.get("severity","INFO"),"sev_reason":agent.get("sev_reason","")}
     if skills:
-        yield {"type": "skills", "skills": [{"name": s.get("name",""), "display": s.get("display","")} for s in skills]}
+        yield {"type":"skills","skills":[{"name":s.get("name",""),"display":s.get("display","")} for s in skills]}
+
+    msg = [SystemMessage(content=SYSTEM_PROMPT.format(
+        name=persona_name(), persona_prompt=agent.get("prompt",""),
+        tone=tone(agent.get("severity","INFO")), context=context or "无"
+    ))]
+    msg.append(HumanMessage(content=question))
 
     if _llm is None:
-        yield {"type": "chunk", "text": "Nobody 大脑未连接。"}
-        yield {"type": "done", "sources": []}
-        return
+        yield {"type":"chunk","text":"大脑未连接。"}; yield {"type":"done","sources":[]}; return
 
     full = ""
     try:
-        for chunk in _llm.stream(messages):
-            if chunk.content:
-                full += chunk.content
-                yield {"type": "chunk", "text": chunk.content}
+        for chunk in _llm.stream(msg):
+            if chunk.content: full += chunk.content; yield {"type":"chunk","text":chunk.content}
     except Exception as e:
-        full = f"处理失败：{str(e)[:200]}"
-        yield {"type": "chunk", "text": full}
+        full = f"错误：{str(e)[:200]}"; yield {"type":"chunk","text":full}
+    yield {"type":"done","sources":[context[:300]] if context else [],"agent":agent}
 
-    yield {"type": "done", "sources": [context[:300]] if context else [], "agent": agent}
+# ========== 多Agent协作 ==========
+
+def multi_agent(question: str) -> dict:
+    agent = agent_classify(question)
+    agents_to_run = [agent]
+    if agent.get("severity") in ("P0","P1"):
+        for a in []:  # TODO: 从 agents/ 配置中按 severity 匹配协作 Agent
+            pass
+    result = ask(question)
+    result["agents_used"] = [agent.get("display","")]
+    result["collaborative"] = False
+    return result
