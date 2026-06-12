@@ -115,6 +115,18 @@ main{flex:1;display:flex;flex-direction:column;min-width:0}
           <button onclick="savePref()">保存</button>
         </div>
       </div>
+      <div class="profile-section">
+        <h3>🤖 技能树</h3>
+        <div id="skillsView"><div style="color:var(--dim)">加载中...</div></div>
+      </div>
+      <div class="profile-section">
+        <h3>🎯 目标</h3>
+        <div id="goalsView"><div style="color:var(--dim)">加载中...</div></div>
+        <div class="edit-row">
+          <input id="goalInput" placeholder="新目标（如：考下 OSCP）">
+          <button onclick="addGoal()">添加</button>
+        </div>
+      </div>
     </div>
   </div>
 </main>
@@ -257,16 +269,20 @@ async function loadTimeline() {
 async function loadMe() {
   if (!IS_ADMIN) { return; }
   try {
-    const [proRes, prefRes] = await Promise.all([
+    const [proRes, prefRes, skRes] = await Promise.all([
       fetch('/api/profile', {headers:{'X-Admin':ADMIN_KEY}}),
-      fetch('/api/profile/preferences', {headers:{'X-Admin':ADMIN_KEY}})
+      fetch('/api/profile/preferences', {headers:{'X-Admin':ADMIN_KEY}}),
+      fetch('/api/chat/skills')
     ]);
     const pro = await proRes.json();
     const pref = await prefRes.json();
+    const sk = await skRes.json();
 
     const profile = pro.data?.profile || {};
-    document.getElementById('profileView').innerHTML = Object.keys(profile).length
-      ? Object.entries(profile).map(([k,v]) =>
+    // 排除 goals，单独展示
+    const {goals, ...rest} = profile;
+    document.getElementById('profileView').innerHTML = Object.keys(rest).length
+      ? Object.entries(rest).map(([k,v]) =>
           `<div class="profile-row"><span class="key">${esc(k)}</span><span class="val">${esc(typeof v==='object'?JSON.stringify(v):String(v))}</span></div>`
         ).join('')
       : '<div style="color:var(--dim);font-size:12px;">尚未设置。在上方填写你的信息。</div>';
@@ -278,7 +294,50 @@ async function loadMe() {
         ).join('')
       : '<div style="color:var(--dim);font-size:12px;">使用默认偏好。</div>';
 
+    // 技能树
+    const skills = sk.data || [];
+    document.getElementById('skillsView').innerHTML = skills.length
+      ? skills.map(s => `<div class="profile-row"><span class="key">${esc(s.display||s.id)}</span><span class="val" style="font-size:10px;">${esc(s.triggers?.slice(0,3).join(', ')||'')} · v${s.version}</span></div>`).join('')
+      : '<div style="color:var(--dim);font-size:12px;">技能加载中...</div>';
+
+    // 目标
+    const goalsList = Array.isArray(goals) ? goals : [];
+    document.getElementById('goalsView').innerHTML = goalsList.length
+      ? goalsList.map((g,i) => `<div class="profile-row"><span class="key">🎯</span><span class="val">${esc(String(g))}</span><span style="font-size:10px;color:var(--red);cursor:pointer" onclick="delGoal(${i})">✕</span></div>`).join('')
+      : '<div style="color:var(--dim);font-size:12px;">暂无目标。设定你的第一个目标。</div>';
+
   } catch(e) {}
+}
+
+async function addGoal() {
+  const input = document.getElementById('goalInput');
+  const text = input.value.trim();
+  if (!text) return;
+  // 先读现有 goals
+  const r = await fetch('/api/profile', {headers:{'X-Admin':ADMIN_KEY}});
+  const d = await r.json();
+  const goals = d.data?.profile?.goals || [];
+  if (!Array.isArray(goals)) goals = [];
+  goals.push(text);
+  await fetch('/api/profile', {
+    method:'PUT',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},
+    body:JSON.stringify({key:'goals',value:JSON.stringify(goals)})
+  });
+  input.value = '';
+  loadMe();
+}
+
+async function delGoal(index) {
+  const r = await fetch('/api/profile', {headers:{'X-Admin':ADMIN_KEY}});
+  const d = await r.json();
+  let goals = d.data?.profile?.goals || [];
+  if (!Array.isArray(goals)) return;
+  goals.splice(index, 1);
+  await fetch('/api/profile', {
+    method:'PUT',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},
+    body:JSON.stringify({key:'goals',value:JSON.stringify(goals)})
+  });
+  loadMe();
 }
 
 async function saveProfile() {
