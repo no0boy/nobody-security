@@ -74,6 +74,38 @@ def remember(req: AskReq, x_admin: Optional[str] = Header(None)):
         return {"code": 0, "message": f"已存储到知识库：{content[:50]}"}
     return {"code": 400, "message": "格式：'记住 xxx' 或 '知识 xxx'"}
 
+@router.get("/memory/semantic")
+def sem_search(q: str = "", x_admin: Optional[str] = Header(None)):
+    """语义搜索记忆"""
+    if not q: return {"code": 0, "data": []}
+    results = Memory.sem_search(q)
+    return {"code": 0, "data": results}
+
+@router.post("/memory/index")
+def sem_index(x_admin: Optional[str] = Header(None)):
+    """重建语义索引"""
+    if not _verify_admin(x_admin): return {"code": 403, "message": "仅管理员"}
+    Memory.sem_index()
+    return {"code": 0, "message": "索引已重建"}
+
+@router.get("/knowledge/tree")
+def know_tree(x_admin: Optional[str] = Header(None)):
+    """知识树"""
+    tree = Memory.know_tree()
+    return {"code": 0, "data": tree}
+
+@router.post("/knowledge/add")
+def know_add(req: AskReq, x_admin: Optional[str] = Header(None)):
+    """按路径添加知识"""
+    if not _verify_admin(x_admin): return {"code": 403, "message": "仅管理员"}
+    # 格式: "路径: security/sqli/payload 内容"
+    q = req.question.strip()
+    if ":" in q:
+        path, content = q.split(":", 1)
+        Memory.know_add(path.strip(), content.strip())
+        return {"code": 0, "message": f"已添加: {path.strip()}"}
+    return {"code": 400, "message": "格式: 路径: 内容"}
+
 @router.post("/ask")
 def chat_ask(req: AskReq, x_admin: Optional[str] = Header(None)):
     is_admin = _verify_admin(x_admin)

@@ -128,14 +128,15 @@ main{flex:1;display:flex;flex-direction:column;min-width:0}
   <!-- 📚 知识库 -->
   <div class="panel" id="panel-knowledge">
     <div class="content-panel">
-      <h2>📚 知识库</h2><div class="desc">你的笔记、Payload、Writeup</div>
-      <div class="search-box"><input type="text" id="knowSearch" placeholder="搜索知识..." oninput="loadKnowledge()"></div>
+      <h2>📚 知识库</h2><div class="desc">知识树 · 按路径组织</div>
+      <div class="search-box"><input type="text" id="knowSearch" placeholder="语义搜索知识..." oninput="semSearch()"></div>
+      <div id="semResults" style="margin-bottom:12px;font-size:11px;"></div>
       <div class="input-row">
-        <input type="text" id="knowKey" placeholder="标题 (如: SQL注入Payload)">
-        <input type="text" id="knowVal" placeholder="内容 (如: ' OR '1'='1)">
+        <input type="text" id="knowPath" placeholder="路径: security/sqli/payload">
+        <input type="text" id="knowContent" placeholder="内容">
         <button onclick="saveKnow()">保存</button>
       </div>
-      <div class="item-list" id="knowList"><div class="empty-state">加载中...</div></div>
+      <div class="item-list" id="knowTree"><div class="empty-state">加载中...</div></div>
     </div>
   </div>
 
@@ -280,24 +281,43 @@ async function saveMem() {
 
 // ====== 知识库管理 ======
 async function loadKnowledge() {
-  if (!IS_ADMIN) return;
-  const q = (document.getElementById('knowSearch')?.value || '').toLowerCase();
   try {
-    const r = await fetch('/api/chat/welcome', {headers:{'X-Admin':ADMIN_KEY}});
+    const r = await fetch('/api/knowledge/tree', {headers: IS_ADMIN ? {'X-Admin':ADMIN_KEY} : {}});
     const d = await r.json();
-    const items = d.data?.recent_knowledge || [];
-    document.getElementById('knowList').innerHTML = items.length ? items.map(k => `
-      <div class="item-card"><div class="item-key">${esc(k)}</div></div>`).join('') : '<div class="empty-state">暂无知识条目。在聊天中说"知识 xxx"添加。</div>';
+    if (d.code !== 0) return;
+    document.getElementById('knowTree').innerHTML = renderTree(d.data, 0) || '<div class="empty-state">知识库为空。添加格式: 路径: 内容</div>';
+  } catch(e) {}
+}
+
+function renderTree(node, depth) {
+  if (!node || Object.keys(node).length === 0) return '';
+  return Object.entries(node).map(([k, v]) => {
+    const indent = '&nbsp;&nbsp;'.repeat(depth);
+    const isFolder = typeof v === 'object' && v !== null;
+    if (isFolder) {
+      return `<details open style="margin-left:${depth*12}px"><summary style="color:var(--accent);cursor:pointer;font-size:12px;">📁 ${esc(k)}</summary>${renderTree(v, depth+1)}</details>`;
+    }
+    return `<div style="margin-left:${depth*12}px;font-size:11px;padding:4px 0;color:var(--dim);">📄 ${esc(k)}: <span style="color:var(--text)">${esc(String(v).slice(0,100))}</span></div>`;
+  }).join('');
+}
+
+async function semSearch() {
+  const q = document.getElementById('knowSearch').value.trim();
+  if (!q) { loadKnowledge(); return; }
+  try {
+    const r = await fetch('/api/chat/memory/semantic?q=' + encodeURIComponent(q), {headers: IS_ADMIN ? {'X-Admin':ADMIN_KEY} : {}});
+    const d = await r.json();
+    document.getElementById('semResults').innerHTML = (d.data || []).length ? '<div style="color:var(--accent);margin-bottom:8px;">🔍 语义搜索结果:</div>' + d.data.map(s => `<div class="item-card" style="margin-bottom:4px;"><div class="item-val">${esc(s.slice(0,200))}</div></div>`).join('') : '';
   } catch(e) {}
 }
 
 async function saveKnow() {
-  const k = document.getElementById('knowKey').value.trim();
-  const v = document.getElementById('knowVal').value.trim();
-  if (!k || !v) return;
+  const p = document.getElementById('knowPath').value.trim();
+  const c = document.getElementById('knowContent').value.trim();
+  if (!p || !c) return;
   try {
-    await fetch('/api/chat/remember', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:`知识 ${k}: ${v}`,stream:false})});
-    document.getElementById('knowKey').value = ''; document.getElementById('knowVal').value = '';
+    await fetch('/api/knowledge/add', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:`${p}: ${c}`,stream:false})});
+    document.getElementById('knowPath').value = ''; document.getElementById('knowContent').value = '';
     loadKnowledge();
   } catch(e) {}
 }

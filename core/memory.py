@@ -1,10 +1,11 @@
 """
-三层记忆系统
+三层记忆系统 + 知识树 + 语义搜索
   core.db     — Master 核心记忆（人格/目标/项目）
-  knowledge.db — Master 知识库（笔记/Payload/Writeup/CVE）
+  knowledge.db — Master 知识库（支持路径: security/sqli/payload.txt）
   session      — 游客对话缓存（内存，关网页清空）
+  sem_search   — ChromaDB 语义搜索记忆
 """
-import json, os, sqlite3
+import json, os, sqlite3, chromadb
 from datetime import datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -68,7 +69,59 @@ class Memory:
     def session_get(session_id):
         return _session_store.get(session_id, [])
 
-    # ====== 学习记录（Master 对话时自动记录） ======
+    # ====== 知识树 ======
+    @staticmethod
+    def know_tree():
+        """返回知识树结构"""
+        tree = {}
+        all_items = Memory.know_get() or {}
+        for key, val in all_items.items():
+            # key 格式: "security/sqli/payload" 或 "kb_0" (旧格式)
+            parts = key.split("/") if "/" in key else ["_other", key]
+            node = tree
+            for part in parts[:-1]:
+                if part not in node: node[part] = {}
+                node = node[part]
+            node[parts[-1]] = str(val)[:100] if isinstance(val, dict) else str(val)[:100]
+        return tree
+
+    @staticmethod
+    def know_add(path, content):
+        """按路径添加知识: knowledge/security/sqli/payload"""
+        Memory.know_set(path, {"content": content, "time": datetime.now().isoformat()})
+
+    # ====== 语义记忆搜索 ======
+    @staticmethod
+    def sem_index():
+        """将核心记忆索引到 ChromaDB 用于语义搜索"""
+        import chromadb.utils.embedding_functions as ef
+        persist = os.path.join(os.path.dirname(ROOT), "chroma_data")
+        client = chromadb.PersistentClient(path=persist)
+        col = client.get_or_create_collection(name="nobody_memory", metadata={"hnsw:space": "cosine"})
+        fn = ef.DefaultEmbeddingFunction()
+
+        items = Memory.core_get() or {}
+        for key, val in items.items():
+            text = f"{key}: {json.dumps(val, ensure_ascii=False)}"
+            try:
+                emb = fn([text])[0]
+                col.upsert(ids=[key], embeddings=[emb], documents=[text])
+            except: pass
+
+    @staticmethod
+    def sem_search(query: str, top_k: int = 5) -> list:
+        """语义搜索记忆"""
+        try:
+            import chromadb.utils.embedding_functions as ef
+            persist = os.path.join(os.path.dirname(ROOT), "chroma_data")
+            col = chromadb.PersistentClient(path=persist).get_or_create_collection(name="nobody_memory")
+            fn = ef.DefaultEmbeddingFunction()
+            emb = fn([query])[0]
+            results = col.query(query_embeddings=[emb], n_results=top_k, include=["documents"])
+            return results["documents"][0] if results["documents"] else []
+        except: return []
+
+    # ====== 学习记录 ======
     @staticmethod
     def learn(topic):
         keywords = ["SQL注入","XSS","SSRF","RCE","提权","渗透","红队","漏洞","CVE",
