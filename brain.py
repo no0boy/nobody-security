@@ -12,6 +12,75 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
+from datetime import datetime
+import sqlite3
+
+# ========== 五维记忆系统 ==========
+
+MEMORY_DB = os.path.join(os.path.dirname(__file__), "memory.db")
+
+def _mem_db():
+    conn = sqlite3.connect(MEMORY_DB)
+    conn.execute("""CREATE TABLE IF NOT EXISTS memories (
+        user_id TEXT, type TEXT, key TEXT, value TEXT,
+        updated_at TEXT, PRIMARY KEY (user_id, type, key))""")
+    return conn
+
+class Memory:
+    """👤个人档案 ❤️偏好 📚学习 💼经验 🎯目标"""
+
+    @staticmethod
+    def set(user_id, mem_type, key, value):
+        db = _mem_db()
+        db.execute("INSERT OR REPLACE INTO memories VALUES (?,?,?,?,?)",
+                   (user_id, mem_type, key, json.dumps(value, ensure_ascii=False),
+                    datetime.now().isoformat()))
+        db.commit(); db.close()
+
+    @staticmethod
+    def get(user_id, mem_type, key=None):
+        db = _mem_db()
+        if key:
+            row = db.execute("SELECT value FROM memories WHERE user_id=? AND type=? AND key=?",
+                             (user_id, mem_type, key)).fetchone()
+            db.close()
+            return json.loads(row[0]) if row else None
+        rows = db.execute("SELECT key, value FROM memories WHERE user_id=? AND type=?",
+                          (user_id, mem_type)).fetchall()
+        db.close()
+        return {r[0]: json.loads(r[1]) for r in rows}
+
+    @staticmethod
+    def welcome(user_id):
+        p = Memory.get(user_id, "profile", "base") or {}
+        if not p:
+            return {"is_new": True, "msg": "👤 Nobody 在线。你是谁？\n告诉我：称呼,方向,水平\n例：「no0boy,红队,入门」"}
+        learn = list((Memory.get(user_id, "learning") or {}).keys())[-5:]
+        goals = list((Memory.get(user_id, "goals") or {}).keys())[:3]
+        return {"is_new": False, "profile": p,
+                "recent": learn, "goals": goals,
+                "msg": f"👤 {p.get('name','')}，欢迎回来。\n📚 最近：{', '.join(learn) if learn else '暂无'}\n🎯 目标：{', '.join(goals) if goals else '未设定'}"}
+
+    @staticmethod
+    def try_parse(user_id, text):
+        if Memory.get(user_id, "profile", "base"): return None
+        parts = text.replace("，",",").replace("、",",").split(",")
+        if len(parts) >= 2:
+            p = {"name": parts[0].strip(), "direction": parts[1].strip(),
+                 "level": parts[2].strip() if len(parts) > 2 else "入门"}
+            Memory.set(user_id, "profile", "base", p)
+            return p
+        return None
+
+    @staticmethod
+    def record(user_id, question):
+        for w in ["SQL注入","XSS","SSRF","RCE","提权","渗透","红队","蓝队","漏洞","CVE",
+                  "OWASP","Burp","Nmap","Linux","Python","WAF","日志","应急","CTF","靶场",
+                  "代码审计","防御","加密","免杀","社工","内网","域控"]:
+            if w in question:
+                Memory.set(user_id, "learning", w,
+                          {"last": datetime.now().isoformat()})
+                break
 
 # ========== 加载配置 ==========
 
@@ -57,34 +126,22 @@ _init_llm()
 # ========== 意图匹配 ==========
 
 def assess_severity(question: str) -> dict:
-    """用 LLM 快速判断是否是安全事件 + 严重度"""
-    if _llm is None:
-        return {"is_security": False, "severity": "INFO", "reason": ""}
+    """安全事件严重度评估 — 关键词 + LLM 双重判断"""
+    # 关键词快速通道：省一次 LLM 调用
+    p0_words = ["被攻击", "入侵了", "勒索", "挖矿", "webshell", "被黑了", "数据泄露", "正在扫描"]
+    p1_words = ["漏洞", "SQL注入", "XSS", "RCE", "提权", "后门", "异常进程", "可疑", "SSRF", "XXE"]
+    p2_words = ["OWASP", "CVE", "渗透", "安全", "攻击手法", "防御", "加密", "注入", "攻防"]
 
-    prompt = f"""判断以下用户输入是否是安全事件，返回JSON。
-
-用户输入："{question}"
-
-安全事件指：攻击、入侵、漏洞、异常扫描、勒索、挖矿、数据泄露、权限提升等。
-
-返回格式（只返回JSON）：
-{{"is_security": true/false, "severity": "P0/P1/P2/INFO", "reason": "简短原因"}}
-
-P0=正在发生的攻击(需立即处置)
-P1=可疑行为/高危漏洞(需尽快调查)
-P2=一般安全问题/咨询
-INFO=非安全事件"""
-
-    try:
-        resp = _llm.invoke([HumanMessage(content=prompt)])
-        import json as _json
-        text = resp.content.strip()
-        if "{" in text and "}" in text:
-            start = text.index("{")
-            end = text.rindex("}") + 1
-            return _json.loads(text[start:end])
-    except Exception:
-        pass
+    q_lower = question.lower()
+    for w in p0_words:
+        if w.lower() in q_lower:
+            return {"is_security": True, "severity": "P0", "reason": f"关键词匹配：{w}"}
+    for w in p1_words:
+        if w.lower() in q_lower:
+            return {"is_security": True, "severity": "P1", "reason": f"关键词匹配：{w}"}
+    for w in p2_words:
+        if w.lower() in q_lower:
+            return {"is_security": True, "severity": "P2", "reason": f"关键词匹配：{w}"}
 
     return {"is_security": False, "severity": "INFO", "reason": ""}
 
@@ -267,6 +324,7 @@ def ask(question: str) -> dict:
 
     try:
         response = _llm.invoke(messages)
+        Memory.record("nobody", question)  # 记下学习内容
         return {
             "answer": response.content,
             "agent": agent,
