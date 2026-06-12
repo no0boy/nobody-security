@@ -107,9 +107,15 @@ _skills = _load_jsons(SKILL_DIR)
 
 _llm = None
 
+def _resolve_env(val):
+    """${VAR} → 环境变量值"""
+    if isinstance(val, str) and val.startswith("${") and val.endswith("}"):
+        return os.getenv(val[2:-1], "")
+    return val
+
 def _init_llm():
     global _llm
-    key = _provider.get("api_key", os.getenv("DASHSCOPE_API_KEY", ""))
+    key = _resolve_env(_provider.get("api_key", ""))
     if not key or len(key) < 4:
         _llm = None
         return
