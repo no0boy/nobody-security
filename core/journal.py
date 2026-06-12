@@ -115,8 +115,8 @@ class Journal:
         confirmed: bool = None,
         limit: int = 20,
     ) -> list[dict]:
-        """统一查询入口"""
-        conditions = []
+        """统一查询入口。默认排除软删除条目 (confirmed != -1)。"""
+        conditions = ["confirmed != -1"]  # 始终排除软删除
         params = []
 
         if types:
@@ -133,7 +133,7 @@ class Journal:
             conditions.append("confirmed = ?")
             params.append(int(confirmed))
 
-        where = " AND ".join(conditions) if conditions else "1=1"
+        where = " AND ".join(conditions)
         sql = f"SELECT * FROM events WHERE {where} ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
 
