@@ -103,7 +103,12 @@ async function send() {
         if (!line.startsWith('data: ')) continue;
         try {
           const p = JSON.parse(line.slice(6));
-          if (p.type === 'agent') tag.textContent = `${p.emoji} ${p.name}`;
+          if (p.type === 'agent') {
+            const sevColors = {P0:'#ff0000',P1:'#ff8800',P2:'#ffdd00',INFO:'#00ff88'};
+            const sevColor = sevColors[p.severity] || '#00ff88';
+            tag.innerHTML = `${p.emoji} ${p.name} · <span style="color:${sevColor};font-weight:bold;">${p.severity}</span>`;
+            if (p.sev_reason) tag.title = p.sev_reason;
+          }
           else if (p.type === 'chunk') { full += p.text; bubble.textContent = full; }
           else if (p.type === 'done') { tag.textContent = `${tag.textContent} · 完毕`; }
         } catch(e) {}

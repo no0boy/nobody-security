@@ -56,8 +56,41 @@ _init_llm()
 
 # ========== 意图匹配 ==========
 
+def assess_severity(question: str) -> dict:
+    """用 LLM 快速判断是否是安全事件 + 严重度"""
+    if _llm is None:
+        return {"is_security": False, "severity": "INFO", "reason": ""}
+
+    prompt = f"""判断以下用户输入是否是安全事件，返回JSON。
+
+用户输入："{question}"
+
+安全事件指：攻击、入侵、漏洞、异常扫描、勒索、挖矿、数据泄露、权限提升等。
+
+返回格式（只返回JSON）：
+{{"is_security": true/false, "severity": "P0/P1/P2/INFO", "reason": "简短原因"}}
+
+P0=正在发生的攻击(需立即处置)
+P1=可疑行为/高危漏洞(需尽快调查)
+P2=一般安全问题/咨询
+INFO=非安全事件"""
+
+    try:
+        resp = _llm.invoke([HumanMessage(content=prompt)])
+        import json as _json
+        text = resp.content.strip()
+        if "{" in text and "}" in text:
+            start = text.index("{")
+            end = text.rindex("}") + 1
+            return _json.loads(text[start:end])
+    except Exception:
+        pass
+
+    return {"is_security": False, "severity": "INFO", "reason": ""}
+
+
 def classify(question: str) -> dict:
-    """匹配最合适的Agent"""
+    """匹配最合适的Agent + 严重度评估"""
     best = None
     best_score = 0
     for agent in _agents:
@@ -65,7 +98,17 @@ def classify(question: str) -> dict:
         if score > best_score:
             best_score = score
             best = agent
-    return best or {"name": "nobody", "display": "Nobody", "emoji": "💀", "prompt": _persona.get("voice", {}).get("greeting", "Nobody 在线。")}
+
+    if best is None:
+        best = {"name": "nobody", "display": "Nobody", "emoji": "👤", "prompt": _persona.get("voice", {}).get("greeting", "Nobody 在线。")}
+
+    # 安全事件评估
+    sev = assess_severity(question)
+    best["severity"] = sev.get("severity", "INFO")
+    best["sev_reason"] = sev.get("reason", "")
+    best["is_security"] = sev.get("is_security", False)
+
+    return best
 
 def match_skills(question: str) -> list:
     """匹配相关技能"""
@@ -217,7 +260,8 @@ def ask_stream(question: str):
     messages = [SystemMessage(content=system)]
     messages.append(HumanMessage(content=question))
 
-    yield {"type": "agent", "name": agent.get("display", "Nobody"), "emoji": agent.get("emoji", "💀")}
+    yield {"type": "agent", "name": agent.get("display", "Nobody"), "emoji": agent.get("emoji", "👤"),
+           "severity": agent.get("severity", "INFO"), "sev_reason": agent.get("sev_reason", "")}
 
     if _llm is None:
         yield {"type": "chunk", "text": "Nobody 大脑未连接。"}
