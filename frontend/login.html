@@ -24,27 +24,33 @@
   <h1>Nobody</h1>
   <div class="sub">Security Partner · v1.0</div>
   <div class="err" id="err"></div>
-  <button class="btn btn-primary" onclick="go('nobody','nobody2025')">🚀 进入 Nobody</button>
-  <button class="btn btn-outline" onclick="go('admin','admin123')">🔧 管理后台</button>
+  <button class="btn btn-primary" onclick="guest()">🚀 游客体验</button>
+  <button class="btn btn-outline" onclick="go('nobody','nobody2025')">👤 登录</button>
+  <a href="#" onclick="go('admin','admin123')" style="font-size:11px;color:#444;">管理</a>
 </div>
 <script>
 async function go(u, p) {
-  try {
-    const r = await fetch('/api/auth/login', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({username: u, password: p})
-    });
-    const d = await r.json();
-    if (d.code === 0) {
-      localStorage.setItem('token', d.data.token);
-      localStorage.setItem('user', JSON.stringify(d.data.user));
-      window.location.href = 'index.html';
-    } else {
-      document.getElementById('err').textContent = d.message; document.getElementById('err').style.display = 'block';
-    }
-  } catch(e) {
-    document.getElementById('err').textContent = '连接失败'; document.getElementById('err').style.display = 'block';
-  }
+  const r = await fetch('/api/auth/login', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({username: u, password: p})
+  });
+  const d = await r.json();
+  if (d.code === 0) { saveAndGo(d); }
+  else { showErr(d.message); }
+}
+async function guest() {
+  const r = await fetch('/api/auth/guest', { method: 'POST' });
+  const d = await r.json();
+  if (d.code === 0) { saveAndGo(d); }
+}
+function saveAndGo(d) {
+  localStorage.setItem('token', d.data.token);
+  localStorage.setItem('user', JSON.stringify(d.data.user));
+  window.location.href = 'index.html';
+}
+function showErr(m) {
+  document.getElementById('err').textContent = m || '失败';
+  document.getElementById('err').style.display = 'block';
 }
 </script>
 </body>

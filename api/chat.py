@@ -28,8 +28,9 @@ def parse_profile(req: AskReq, user: str = Depends(get_current_user)):
 
 @router.post("/ask")
 def chat_ask(req: AskReq, user: str = Depends(get_current_user)):
-    # 记录到学习记忆
-    brain.Memory.record(user, req.question)
+    # 游客不记录记忆
+    if user != "guest":
+        brain.Memory.record(user, req.question)
 
     # 检查是否新用户需要解析身份
     profile_parsed = brain.Memory.try_parse(user, req.question)

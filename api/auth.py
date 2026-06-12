@@ -45,6 +45,11 @@ def register(req: LoginReq):
     finally:
         db.close()
 
+@router.post("/guest")
+def guest_login():
+    """游客模式 — 无需注册，直接进入。可读公共知识，不保存记忆。"""
+    return {"code": 0, "data": {"token": create_token("guest"), "user": {"username": "guest", "role": "guest"}}}
+
 @router.post("/login")
 def login(req: LoginReq):
     db = _user_db()
