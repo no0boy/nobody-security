@@ -54,3 +54,32 @@ def chat_ask(req: AskReq, user: str = Depends(get_current_user)):
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@router.get("/planner")
+def planner(user: str = Depends(get_current_user)):
+    """主动规划建议"""
+    if user == "guest":
+        return {"code": 0, "data": {"suggestions": ["注册账号后，Nobody 可以帮你规划学习路线。"]}}
+    result = brain.planner_check(user)
+    return {"code": 0, "data": result}
+
+
+@router.post("/multi-agent")
+def multi_agent(req: AskReq, user: str = Depends(get_current_user)):
+    """多Agent协作分析"""
+    if user != "guest":
+        brain.Memory.record(user, req.question)
+
+    result = brain.multi_agent_think(req.question)
+
+    if not req.stream:
+        return {"code": 0, "data": result}
+
+    def generate():
+        if result.get("agents_used"):
+            yield f"data: {json.dumps({'type': 'agents', 'agents': result['agents_used'], 'collaborative': True}, ensure_ascii=False)}\n\n"
+        for event in brain.ask_stream(req.question):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")

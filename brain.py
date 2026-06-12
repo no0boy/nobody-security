@@ -314,6 +314,122 @@ def init_knowledge():
 
     print(f"[Nobody] 已入库 {count} 个向量化知识片段")
 
+# ========== v1.8 Planner 主动规划 ==========
+
+def planner_check(user_id: str) -> dict:
+    """检查学习状态，生成主动建议"""
+    learning = Memory.get(user_id, "learning") or {}
+    goals = Memory.get(user_id, "goals") or {}
+    profile = Memory.get(user_id, "profile", "base") or {}
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    # 1. 计算距离上次学习的天数
+    days_since = 999
+    for k, v in learning.items():
+        last = v.get("last", "")
+        if last:
+            try:
+                last_date = datetime.strptime(last[:10], "%Y-%m-%d")
+                days = (datetime.now() - last_date).days
+                if days < days_since:
+                    days_since = days
+            except:
+                pass
+
+    # 2. 生成建议
+    suggestions = []
+    if days_since >= 3:
+        recent = list(learning.keys())[-3:] if learning else []
+        if recent:
+            suggestions.append(f"你已经 {days_since} 天没学习了。上次学了 {', '.join(recent)}，继续？")
+
+    # 学习路线推荐
+    roadmap = {
+        "SQL注入": ["XSS", "命令注入", "SSRF"],
+        "XSS": ["CSRF", "CORS漏洞", "DOM XSS"],
+        "提权": ["Linux提权", "Windows提权", "AD域提权"],
+        "渗透": ["信息收集", "漏洞扫描", "漏洞利用", "后渗透"],
+    }
+    for topic in list(learning.keys())[-3:]:
+        if topic in roadmap:
+            for next_topic in roadmap[topic]:
+                if next_topic not in learning:
+                    suggestions.append(f"🎯 学完 {topic} 后，建议学 {next_topic}（同一知识链）")
+                    break
+
+    return {
+        "days_since_last": days_since,
+        "suggestions": suggestions[:3],
+        "recent_topics": list(learning.keys())[-5:] if learning else [],
+        "goals": list(goals.keys())[:3] if goals else [],
+    }
+
+
+# ========== v1.9 多Agent协作 ==========
+
+def multi_agent_think(question: str) -> dict:
+    """
+    复杂问题 → 多Agent链式分析 → 综合回答
+    威胁研判先分析 → 漏洞研究员查细节 → 应急处置给方案
+    """
+    agent1 = classify(question)
+    agents_to_run = [agent1]
+
+    # 如果是P0/P1安全事件，追加协作Agent
+    if agent1.get("severity") in ("P0", "P1"):
+        # 追加漏洞研究员和应急处置
+        for a in _agents:
+            if a.get("name") not in [agent1.get("name")]:
+                if agent1.get("severity") == "P0" and a.get("name") in ("vuln_researcher",):
+                    agents_to_run.append(a)
+                elif agent1.get("severity") == "P1" and a.get("name") in ("vuln_researcher",):
+                    agents_to_run.append(a)
+
+    if len(agents_to_run) == 1:
+        return ask(question)
+
+    # 链式分析
+    analyses = []
+    for i, agent in enumerate(agents_to_run[:2]):  # 最多2个Agent协作
+        global current_system_prompt
+        saved = current_system_prompt
+        current_system_prompt = agent.get("prompt", "")
+
+        context = _rag_search(question)
+        prompt = f"{agent.get('display','')} 视角分析以下问题：\n\n{question}\n\n参考知识：{context}\n\n分析要点：{'判断威胁类型和严重度' if i==0 else '给出技术细节和防御方案'}"
+        messages = [SystemMessage(content=current_system_prompt), HumanMessage(content=prompt)]
+
+        try:
+            resp = _llm.invoke(messages) if _llm else None
+            if resp:
+                analyses.append(f"【{agent.get('display','')}分析】\n{resp.content[:300]}")
+        except:
+            pass
+        finally:
+            current_system_prompt = saved
+
+    # 综合回答
+    if analyses:
+        combined = "\n\n".join(analyses)
+        summary_prompt = f"以下是多个安全专家的分析，请综合成一份简洁回答：\n\n{combined}\n\n用户问题：{question}\n\n综合回答："
+        try:
+            resp = _llm.invoke([HumanMessage(content=summary_prompt)]) if _llm else None
+            answer = resp.content if resp else combined
+        except:
+            answer = combined
+    else:
+        result = ask(question)
+        answer = result.get("answer", "")
+
+    return {
+        "answer": answer,
+        "agents_used": [a.get("display", "") for a in agents_to_run],
+        "collaborative": len(agents_to_run) > 1,
+        "sources": [],
+    }
+
+
 # ========== 核心问答 ==========
 
 SYSTEM_PROMPT = """你是 {name}（{display}）。
