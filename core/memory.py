@@ -21,6 +21,25 @@ def _db(path):
     return conn
 
 class Memory:
+    # ====== 通用读写（兼容 goals 等新类型） ======
+    @staticmethod
+    def get(user_id, mem_type, key=None):
+        if mem_type == "goals":
+            return Memory.core_get()  # goals 存在 memory_core.db
+        if mem_type in ("profile","preference","learning","experience"):
+            if key: return Memory.core_get(key)
+            return {k:v for k,v in (Memory.core_get() or {}).items() if not k.startswith("note_")}
+        if mem_type == "knowledge":
+            return Memory.know_get(key)
+        return {}
+
+    @staticmethod
+    def set(user_id, mem_type, key, value):
+        if mem_type in ("goals", "profile", "preference", "learning", "experience"):
+            Memory.core_set(key, value)
+        elif mem_type == "knowledge":
+            Memory.know_set(key, value)
+
     # ====== 核心记忆（Master 才写） ======
     @staticmethod
     def core_set(key, value):
