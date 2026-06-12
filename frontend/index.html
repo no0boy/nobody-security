@@ -273,10 +273,22 @@ async function send() {
     }
   } catch(e) { bubble.textContent = '连接失败'; tag.textContent = '离线'; }
 
-  // 记忆模式
-  if (IS_ADMIN && MEM_MODE && full) {
+  // 记忆模式：自动检查是否值得保存
+  if (IS_ADMIN && MEM_MODE && full && text.length > 20) {
     try {
-      await fetch('/api/chat/remember', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:'记住 对话: '+text.slice(0,100),stream:false})});
+      const sr = await fetch('/api/chat/suggest-memory', {
+        method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},
+        body:JSON.stringify({question:text,stream:false})
+      });
+      const sd = await sr.json();
+      if (sd.code === 0 && sd.data.worth_saving) {
+        if (confirm(`💡 Nobody 建议保存这条记忆：\n\n${sd.data.reason}\n\n键: ${sd.data.key}\n\n是否保存？`)) {
+          await fetch('/api/chat/remember', {
+            method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},
+            body:JSON.stringify({question:`记住 ${sd.data.key}: ${text.slice(0,200)}`,stream:false})
+          });
+        }
+      }
     } catch(e) {}
   }
 }

@@ -149,6 +149,44 @@ def know_add(req: AskReq, x_admin: Optional[str] = Header(None)):
         return {"code": 0, "message": f"已添加: {path.strip()}"}
     return {"code": 400, "message": "格式: 路径: 内容"}
 
+
+@router.post("/suggest-memory")
+def suggest_memory(req: AskReq, x_admin: Optional[str] = Header(None)):
+    """
+    智能记忆建议：LLM 判断对话中是否有值得长期保存的信息
+    返回: {worth_saving: bool, suggestion: str, key: str}
+    """
+    if not _verify_admin(x_admin): return {"code": 403, "message": "仅管理员"}
+
+    q = req.question.strip()
+    if len(q) < 20: return {"code": 0, "data": {"worth_saving": False, "reason": "太短"}}
+
+    try:
+        import brain
+        prompt = f"""判断以下对话是否包含值得长期保存的信息。只返回JSON。
+
+对话内容："{q[:500]}"
+
+判断标准：
+- 含有具体的技术知识/Payload/漏洞信息 → worth_saving=true
+- 含有学习记录/项目进度 → worth_saving=true
+- 寒暄/简单问答/已知道的基础知识 → worth_saving=false
+
+返回格式（只返回JSON）：
+{{"worth_saving": true/false, "key": "建议的存储键名", "reason": "简短理由"}}"""
+
+        if brain._llm:
+            from langchain_core.messages import HumanMessage
+            resp = brain._llm.invoke([HumanMessage(content=prompt)])
+            text = resp.content.strip()
+            if "{" in text and "}" in text:
+                import json as _j
+                result = _j.loads(text[text.index("{"):text.rindex("}")+1])
+                return {"code": 0, "data": result}
+    except: pass
+
+    return {"code": 0, "data": {"worth_saving": False, "reason": "无法判断"}}
+
 @router.post("/ask")
 def chat_ask(req: AskReq, x_admin: Optional[str] = Header(None)):
     is_admin = _verify_admin(x_admin)

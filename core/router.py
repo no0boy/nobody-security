@@ -1,16 +1,14 @@
-"""Agent路由 — 意图匹配 + 严重度评估 + 技能执行"""
+"""Agent路由 — 意图匹配 + 严重度评估 + Skill Registry"""
 import json, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AGENT_DIR = os.path.join(ROOT, "agents")
-SKILL_DIR = os.path.join(ROOT, "skills")
 
 def _load_jsons(d):
     if not os.path.exists(d): return []
     return [json.load(open(os.path.join(d, f), "r", encoding="utf-8")) for f in os.listdir(d) if f.endswith(".json")]
 
 _agents = _load_jsons(AGENT_DIR)
-_skills = _load_jsons(SKILL_DIR)
 
 # 严重度关键词
 P0 = ["被攻击","入侵了","勒索","挖矿","webshell","被黑了","数据泄露","正在扫描"]
@@ -38,8 +36,7 @@ def classify(question: str) -> dict:
     return best
 
 def match_skills(question: str) -> list:
-    matched = []
-    for s in _skills:
-        score = sum(1 for kw in s.get("triggers",[]) if kw.lower() in question.lower())
-        if score > 0: matched.append(s)
-    return sorted(matched, key=lambda x: sum(1 for kw in x.get("triggers",[]) if kw.lower() in question.lower()), reverse=True)
+    from core.skills_loader import match as sk_match
+    matched = sk_match(question)
+    reg = __import__('core.skills_loader', fromlist=['registry']).registry()
+    return [reg.get(name, {}) for name, _ in matched]
