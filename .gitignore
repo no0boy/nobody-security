@@ -1,5 +1,7 @@
 *.db
+*.db-*
 chroma_data/
+data/
 __pycache__/
 uploads/
 .env

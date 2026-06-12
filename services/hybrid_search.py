@@ -9,11 +9,11 @@ import jieba
 from rank_bm25 import BM25Okapi
 import os
 
-# Nobody 配置
-SIMILARITY_THRESHOLD = 0.3
-BM25_TOP_K = 10
-RRF_K = 60
-FINAL_TOP_K = 5
+# ── 本地配置（替代缺失的 config 模块）──
+HYBRID_SEARCH_ENABLED = True   # 是否启用混合检索
+BM25_TOP_K = 10                # BM25 召回数
+RRF_K = 60                     # RRF 融合参数
+FINAL_TOP_K = 5                # 最终返回数
 
 # 延迟导入，避免循环依赖
 _collection = None
@@ -91,7 +91,7 @@ def bm25_search(question: str, top_k: int = None) -> list[dict]:
     if not _index_ready or not _bm25:
         return []
 
-    top_k = top_k or config.BM25_TOP_K
+    top_k = top_k or BM25_TOP_K
     tokens = _tokenize(question)
     scores = _bm25.get_scores(tokens)
 
@@ -114,39 +114,67 @@ def bm25_search(question: str, top_k: int = None) -> list[dict]:
     return results
 
 
+def _dense_search(question: str, top_k: int) -> list[dict]:
+    """向量检索：直接查 ChromaDB"""
+    try:
+        import chromadb
+        col = _get_collection()
+        emb = _embed_text(question)
+        results = col.query(query_embeddings=[emb], n_results=top_k,
+                            include=["documents", "metadatas"])
+        docs = []
+        if results.get("documents") and results["documents"][0]:
+            for i, doc in enumerate(results["documents"][0]):
+                meta = (results.get("metadatas") or [{}])[0]
+                docs.append({
+                    "content": doc,
+                    "title": meta[i].get("source", "") if i < len(meta) else "",
+                    "score": 1.0 - (i * 0.05),  # 近似分数
+                    "source": "dense"
+                })
+        return docs
+    except Exception:
+        return []
+
+
+def _embed_text(text: str) -> list:
+    """中文语义向量"""
+    try:
+        import dashscope
+        from http import HTTPStatus
+        key = os.getenv("DASHSCOPE_API_KEY", "")
+        if key:
+            dashscope.api_key = key
+            resp = dashscope.TextEmbedding.call(model="text-embedding-v3", input=text)
+            if resp.status_code == HTTPStatus.OK:
+                return resp.output["embeddings"][0]["embedding"]
+    except Exception:
+        pass
+    # 降级：ChromaDB 内置模型
+    import chromadb.utils.embedding_functions as ef
+    return ef.DefaultEmbeddingFunction()([text])[0]
+
+
 def hybrid_search(question: str, top_k: int = None) -> list[dict]:
     """
     混合检索主入口
     1. Dense（向量检索）+ Sparse（BM25）双路召回
     2. RRF 融合排序
     3. 返回 Top-K 片段
-
-    返回格式与 retrieve_context 一致: [{content, title, score}, ...]
     """
-    if not config.HYBRID_SEARCH_ENABLED:
-        from services.rag_service import retrieve_context
-        return retrieve_context(question, top_k or config.FINAL_TOP_K)
+    if not HYBRID_SEARCH_ENABLED:
+        return _dense_search(question, top_k or FINAL_TOP_K)
 
-    top_k = top_k or config.FINAL_TOP_K
-    recall_k = top_k * 3  # 两路各召回 3 倍数量用于融合
+    top_k = top_k or FINAL_TOP_K
+    recall_k = top_k * 3
 
-    # 双路检索
-    try:
-        from services.rag_service import retrieve_context
-        dense_results = retrieve_context(question, recall_k)
-    except Exception:
-        dense_results = []
+    # 双路并行检索
+    dense_results = _dense_search(question, recall_k)
+    sparse_results = bm25_search(question, recall_k)
 
-    try:
-        sparse_results = bm25_search(question, recall_k)
-    except Exception:
-        sparse_results = []
-
-    # 如果 BM25 不可用，退回纯向量检索
+    # 单路降级
     if not sparse_results:
         return dense_results[:top_k]
-
-    # 如果向量检索不可用，退回纯 BM25
     if not dense_results:
         return sparse_results[:top_k]
 
@@ -155,31 +183,28 @@ def hybrid_search(question: str, top_k: int = None) -> list[dict]:
     content_map = {}
 
     for rank, item in enumerate(dense_results):
-        key = item["content"][:120]  # 用前 120 字符做去重 key
-        rrf_scores[key] = rrf_scores.get(key, 0) + 1.0 / (config.RRF_K + rank + 1)
+        key = item["content"][:120]
+        rrf_scores[key] = rrf_scores.get(key, 0) + 1.0 / (RRF_K + rank + 1)
         content_map[key] = {**item, "source": item.get("source", "dense")}
 
     for rank, item in enumerate(sparse_results):
         key = item["content"][:120]
-        rrf_scores[key] = rrf_scores.get(key, 0) + 1.0 / (config.RRF_K + rank + 1)
+        rrf_scores[key] = rrf_scores.get(key, 0) + 1.0 / (RRF_K + rank + 1)
         if key not in content_map:
             content_map[key] = {**item, "source": item.get("source", "bm25")}
         else:
-            # 双路命中：标记为 hybrid
             content_map[key]["source"] = "hybrid"
 
-    # 按 RRF 分数排序
     sorted_keys = sorted(rrf_scores, key=rrf_scores.get, reverse=True)
     results = []
-    # 归一化：RRF 分数映射到 [0, 1]
     max_score = max(rrf_scores.values()) if rrf_scores else 1.0
     for i, key in enumerate(sorted_keys[:top_k]):
         item = content_map[key]
         normalized = round(rrf_scores[key] / max_score, 3) if max_score > 0 else 0
         results.append({
             "content": item["content"],
-            "title": item["title"],
-            "score": normalized if normalized <= 1.0 else round(1.0 / (1.0 + 1.0 / normalized), 3),
+            "title": item.get("title", ""),
+            "score": min(normalized, 1.0),
             "source": item.get("source", "hybrid"),
         })
 
@@ -189,8 +214,8 @@ def hybrid_search(question: str, top_k: int = None) -> list[dict]:
 def get_index_status() -> dict:
     """获取 BM25 索引状态"""
     return {
-        "enabled": config.HYBRID_SEARCH_ENABLED,
+        "enabled": HYBRID_SEARCH_ENABLED,
         "index_ready": _index_ready,
         "doc_count": len(_bm25_docs),
-        "rrf_k": config.RRF_K,
+        "rrf_k": RRF_K,
     }

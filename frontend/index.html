@@ -137,6 +137,7 @@ main{flex:1;display:flex;flex-direction:column;min-width:0}
     <div class="chat-input">
       <input id="q" placeholder="向 Nobody 提问..." onkeydown="if(event.key==='Enter')send()">
       <button onclick="send()">发送</button>
+      <button onclick="quickSave()" style="background:transparent;color:var(--dim);font-size:18px;padding:10px 8px;font-weight:normal;" title="快速记录">➕</button>
     </div>
     <div id="quickActions" style="padding:0 20px 8px;display:flex;gap:6px;flex-wrap:wrap;">
       <span class="qa-btn" id="qaMem" onclick="toggleMemMode()" title="开启后对话存入长期记忆">🧠 记忆</span>
@@ -270,7 +271,7 @@ async function send() {
   let full = '';
   try {
     const h = {'Content-Type':'application/json'}; if (IS_ADMIN) h['X-Admin'] = ADMIN_KEY;
-    const res = await fetch('/api/chat/ask', {method:'POST',headers:h,body:JSON.stringify({question:text,stream:true})});
+    const res = await fetch('/api/conversation/talk', {method:'POST',headers:h,body:JSON.stringify({question:text,stream:true})});
     const reader = res.body.getReader(), dec = new TextDecoder();
     while (true) {
       const {done,value} = await reader.read(); if (done) break;
@@ -288,28 +289,34 @@ async function send() {
     }
   } catch(e) { bubble.textContent = '连接失败'; tag.textContent = '离线'; }
 
-  // 记忆模式：自动检查是否值得保存
+  // 记忆模式：自动保存到 Journal
   if (IS_ADMIN && MEM_MODE && full && text.length > 20) {
     try {
-      const sr = await fetch('/api/chat/suggest-memory', {
+      await fetch('/api/journal/entry', {
         method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},
-        body:JSON.stringify({question:text,stream:false})
+        body:JSON.stringify({type:'note',summary:text.slice(0,200),detail:full.slice(0,500),tags:[]})
       });
-      const sd = await sr.json();
-      if (sd.code === 0 && sd.data.worth_saving) {
-        if (confirm(`💡 Nobody 建议保存这条记忆：\n\n${sd.data.reason}\n\n键: ${sd.data.key}\n\n是否保存？`)) {
-          await fetch('/api/chat/remember', {
-            method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},
-            body:JSON.stringify({question:`记住 ${sd.data.key}: ${text.slice(0,200)}`,stream:false})
-          });
-        }
-      }
     } catch(e) {}
   }
 }
 
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function logout() { localStorage.removeItem('admin_key'); window.location.href = 'login.html'; }
+
+// ====== 快速记录 ======
+async function quickSave() {
+  if (!IS_ADMIN) { alert('仅 Master 可用'); return; }
+  const text = prompt('📝 记录（学到的 / 想记住的 / 想法）：');
+  if (!text || !text.trim()) return;
+  try {
+    await fetch('/api/journal/learn', {
+      method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},
+      body:JSON.stringify({summary:text.trim(),detail:'',tags:[],type:'learning'})
+    });
+    // 悄悄刷新 Today
+    try { loadToday(); } catch(e) {}
+  } catch(e) { alert('保存失败'); }
+}
 
 // ====== 记忆管理 ======
 async function loadMemory() {
@@ -487,16 +494,23 @@ document.querySelectorAll('[data-panel="goals"]').forEach(b => b.addEventListene
 async function loadToday() {
   try {
     const h = IS_ADMIN ? {'X-Admin':ADMIN_KEY} : {};
-    const r = await fetch('/api/chat/today', {headers: h});
+    const r = await fetch('/api/conversation/today', {headers: h});
     const d = await r.json();
     if (d.code !== 0) return;
     const t = d.data;
     document.getElementById('todayGreeting').textContent = t.greeting;
     document.getElementById('todayDate').textContent = t.date;
     document.getElementById('todaySuggestions').innerHTML = (t.suggestions||[]).map(s => `<div style="padding:4px 0;">• ${esc(s)}</div>`).join('') || '暂无建议';
-    document.getElementById('todayGoals').innerHTML = (t.goals||[]).length ? (t.goals||[]).map(g => `<div style="padding:2px 0;">🎯 ${esc(g)} <a href="#" onclick="navTo('goals')" style="color:var(--accent);font-size:10px;">→</a></div>`).join('') : '设定目标后展示';
+    document.getElementById('todayGoals').innerHTML = (t.goals||[]).length ? (t.goals||[]).map(g => `<div style="padding:2px 0;">🎯 ${esc(g)} →</div>`).join('') : '设定目标后展示';
     document.getElementById('todayRecent').innerHTML = (t.recent_topics||[]).length ? (t.recent_topics||[]).map(r => `<span style="display:inline-block;margin:2px;padding:2px 8px;background:var(--surface);border-radius:10px;font-size:10px;">${esc(r)}</span>`).join('') : '开始学习吧';
-    document.getElementById('todayTimeline').innerHTML = (t.timeline||[]).map(l => `<div style="padding:3px 0;font-size:10px;">${l.date} · ${esc(l.event)}</div>`).join('') || '还没有记录';
+    var tlhtml = '';
+    (t.timeline||[]).forEach(function(day) {
+      tlhtml += '<div style="padding:3px 0;font-size:10px;color:var(--accent);">' + esc(day.date) + '</div>';
+      (day.events||[]).forEach(function(ev) {
+        tlhtml += '<div style="padding:2px 0 2px 12px;font-size:10px;">· ' + esc(ev) + '</div>';
+      });
+    });
+    document.getElementById('todayTimeline').innerHTML = tlhtml || '还没有记录';
   } catch(e) {}
 }
 loadToday();

@@ -173,7 +173,7 @@ Nobody 三层隔离
 ## 目录结构（配置驱动）
 
 ```
-ai助手/
+ai-nobody/
 ├── brain.py              ← 核心引擎
 ├── persona.json          ← 人格定义
 ├── provider.json         ← 模型配置 (${ENV_VAR} 安全注入)
@@ -220,7 +220,7 @@ ai助手/
 export DEEPSEEK_API_KEY=sk-xxx
 
 # 启动
-cd ai助手
+cd ai-nobody
 pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8080
 
