@@ -8,6 +8,7 @@ import uvicorn, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from api.auth import router as auth_router
 from api.chat import router as chat_router
+from api.webhook import router as webhook_router
 import brain
 
 app = FastAPI(title="Nobody Security Partner", version="1.0.0")
@@ -16,6 +17,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 
 app.include_router(auth_router)
 app.include_router(chat_router)
+app.include_router(webhook_router)
 
 FRONTEND = os.path.join(os.path.dirname(__file__), "frontend")
 if os.path.exists(FRONTEND):

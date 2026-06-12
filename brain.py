@@ -319,13 +319,15 @@ def init_knowledge():
 SYSTEM_PROMPT = """你是 {name}（{display}）。
 {persona_prompt}
 
+当前语气要求：{tone}
+
 知识库参考：
 {context}
 
 回答规则：
 1. 优先基于参考知识回答
 2. 知识库里没有的，诚实告知
-3. 风格：{style}
+3. 严格按照当前语气要求回答
 """
 
 def ask(question: str) -> dict:
@@ -336,12 +338,14 @@ def ask(question: str) -> dict:
 
     # 构建 Prompt
     persona_prompt = agent.get("prompt", _persona.get("voice", {}).get("greeting", ""))
+    sev = agent.get("severity", "INFO")
+    tone = _persona.get("tones", {}).get(sev, _persona.get("style", "直接"))
     system = SYSTEM_PROMPT.format(
         name=_persona["name"],
         display=agent.get("display", "Nobody"),
         persona_prompt=persona_prompt,
         context=context if context else "（知识库中暂无相关内容）",
-        style=_persona.get("style", "直接")
+        tone=tone
     )
 
     messages = [SystemMessage(content=system)]
@@ -380,12 +384,14 @@ def ask_stream(question: str):
     context = _rag_search(question)
 
     persona_prompt = agent.get("prompt", "")
+    sev = agent.get("severity", "INFO")
+    tone = _persona.get("tones", {}).get(sev, _persona.get("style", "直接"))
     system = SYSTEM_PROMPT.format(
         name=_persona["name"],
         display=agent.get("display", "Nobody"),
         persona_prompt=persona_prompt,
         context=context if context else "（知识库中暂无相关内容）",
-        style=_persona.get("style", "直接")
+        tone=tone
     )
 
     messages = [SystemMessage(content=system)]
