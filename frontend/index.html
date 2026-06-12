@@ -2,22 +2,19 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Nobody — Security Partner</title>
+<title>Nobody — Companion</title>
 <style>
 :root{--bg:#0a0a0a;--surface:#111111;--border:#1a1a1a;--text:#d4d4d4;--dim:#666;--accent:#00ff88;--warn:#ff8800;--red:#ff4444;--radius:8px}
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,'SF Mono','Consolas',monospace;display:flex;height:100vh;overflow:hidden}
-/* 左侧导航 */
-nav{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:24px 0;flex-shrink:0}
-.nav-brand{padding:0 20px 20px;border-bottom:1px solid var(--border);margin-bottom:12px}
-.nav-brand h1{font-size:16px;color:var(--accent);font-weight:600}
+nav{width:180px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:24px 0;flex-shrink:0}
+.nav-brand{padding:0 16px 16px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.nav-brand h1{font-size:15px;color:var(--accent);font-weight:600}
 .nav-brand .sub{font-size:10px;color:var(--dim);margin-top:2px}
-.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;font-size:12px;color:var(--dim);cursor:pointer;transition:all .15s;border:none;background:none;width:100%;text-align:left;font-family:inherit}
+.nav-item{display:flex;align-items:center;gap:8px;padding:10px 16px;font-size:12px;color:var(--dim);cursor:pointer;transition:all .15s;border:none;background:none;width:100%;text-align:left;font-family:inherit}
 .nav-item:hover{color:var(--text);background:rgba(255,255,255,0.03)}
 .nav-item.active{color:var(--accent);background:rgba(0,255,136,0.05);border-right:2px solid var(--accent)}
-.nav-item .badge{font-size:9px;background:var(--warn);color:#000;padding:1px 6px;border-radius:10px;margin-left:auto}
-.nav-footer{padding:20px;border-top:1px solid var(--border);margin-top:auto;font-size:10px;color:var(--dim)}
-/* 右侧主区域 */
+.nav-footer{padding:16px;border-top:1px solid var(--border);margin-top:auto;font-size:10px;color:var(--dim)}
 main{flex:1;display:flex;flex-direction:column;min-width:0}
 .panel{display:none;flex-direction:column;flex:1;overflow:hidden}
 .panel.active{display:flex}
@@ -39,220 +36,131 @@ main{flex:1;display:flex;flex-direction:column;min-width:0}
 .chat-input input{flex:1;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:inherit;font-size:13px;outline:none}
 .chat-input input:focus{border-color:var(--accent)}
 .chat-input button{padding:10px 20px;background:var(--accent);color:#000;border:none;border-radius:var(--radius);cursor:pointer;font-weight:600;font-family:inherit}
-/* 记忆/知识/训练/Agents 面板 */
+.chat-input .qsave{padding:10px 12px;background:transparent;color:var(--dim);font-size:16px;font-weight:normal}
+/* 时间线 / 我 面板 */
 .content-panel{padding:24px;overflow-y:auto;flex:1}
-.content-panel h2{font-size:16px;color:var(--accent);margin-bottom:4px}
-.content-panel .desc{font-size:11px;color:var(--dim);margin-bottom:20px}
-.item-list{display:flex;flex-direction:column;gap:8px}
-.item-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;font-size:12px}
-.item-card .item-key{color:var(--accent);font-weight:600;margin-bottom:4px}
-.item-card .item-val{color:var(--dim);word-break:break-word}
-.item-card .item-time{font-size:10px;color:var(--dim);margin-top:4px}
-.item-actions{margin-top:6px;display:flex;gap:6px}
-.item-actions button{padding:2px 8px;font-size:10px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--dim);cursor:pointer;font-family:inherit}
-.item-actions button:hover{color:var(--red);border-color:var(--red)}
-.input-row{display:flex;gap:8px;margin-bottom:16px}
-.input-row input{flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:inherit;font-size:12px;outline:none}
-.input-row input:focus{border-color:var(--accent)}
-.input-row button{padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:var(--radius);cursor:pointer;font-family:inherit;font-size:12px}
-.search-box{margin-bottom:16px}
-.search-box input{width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:inherit;font-size:12px;outline:none}
-.empty-state{text-align:center;padding:40px;color:var(--dim)}
-/* 管理员标签 */
-.admin-bar{display:none;padding:6px 20px;background:rgba(255,136,0,0.08);border-bottom:1px solid rgba(255,136,0,0.15);font-size:10px;color:var(--warn)}
-.admin-bar span{cursor:pointer;margin-right:16px}
-.admin-bar span:hover{color:var(--text)}
-/* 快捷标签 */
-.qa-btn{padding:4px 10px;font-size:10px;border:1px solid var(--border);border-radius:12px;color:var(--dim);cursor:pointer;user-select:none;transition:all .15s}
-.qa-btn:hover{color:var(--text);border-color:var(--dim)}
-.qa-btn.on{background:var(--warn);color:#000;border-color:var(--warn)}
-@media(max-width:768px){nav{width:60px}.nav-brand h1,.nav-item span,.nav-footer{display:none}}
+.content-panel h2{font-size:16px;color:var(--accent);margin-bottom:16px}
+.tl-day{margin-bottom:16px}
+.tl-date{font-size:11px;color:var(--accent);margin-bottom:4px;font-weight:600}
+.tl-item{font-size:12px;padding:4px 0 4px 12px;color:var(--text);border-left:1px solid var(--border)}
+.tl-item .tl-type{font-size:10px;color:var(--dim)}
+.profile-section{margin-bottom:20px}
+.profile-section h3{font-size:13px;color:var(--warn);margin-bottom:8px}
+.profile-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;border-bottom:1px solid var(--border)}
+.profile-row .key{color:var(--dim)}
+.profile-row .val{color:var(--text)}
+.edit-row{display:flex;gap:6px;margin-top:8px}
+.edit-row input{flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:inherit;font-size:11px}
+.edit-row button{padding:6px 12px;background:var(--accent);color:#000;border:none;border-radius:4px;cursor:pointer;font-family:inherit;font-size:11px}
+.quick-bar{padding:0 20px 8px;display:flex;gap:6px}
+.qa-btn{padding:4px 10px;font-size:10px;border:1px solid var(--border);border-radius:12px;color:var(--dim);cursor:pointer;transition:all .15s}
+.qa-btn:hover,.qa-btn.on{color:var(--warn);border-color:var(--warn)}
+@media(max-width:768px){nav{width:50px}.nav-brand h1,.nav-item span,.nav-footer{display:none}}
 </style>
 </head>
 <body>
 
-<!-- 左侧导航 -->
 <nav>
-  <div class="nav-brand"><h1>Nobody</h1><div class="sub">Security Partner v2.0</div></div>
-  <button class="nav-item active" data-panel="today"><span>📌</span> Today</button>
-  <button class="nav-item" data-panel="chat"><span>💬</span> 对话</button>
-  <button class="nav-item" data-panel="memory"><span>🧠</span> 长期记忆</button>
-  <button class="nav-item" data-panel="knowledge"><span>📚</span> 知识库</button>
-  <button class="nav-item" data-panel="training"><span>🎓</span> 训练</button>
-  <button class="nav-item" data-panel="goals"><span>🎯</span> 目标</button>
-  <button class="nav-item" data-panel="agents"><span>🤖</span> Agents</button>
-  <div class="nav-footer">
-    <div>固定人格 · 长期记忆</div>
-    <div>no0by 的安全搭档</div>
-  </div>
+  <div class="nav-brand"><h1>Nobody</h1><div class="sub" id="navGreet">v3.0</div></div>
+  <button class="nav-item active" data-panel="chat"><span>💬</span> 对话</button>
+  <button class="nav-item" data-panel="timeline"><span>📅</span> 时间线</button>
+  <button class="nav-item" data-panel="me"><span>👤</span> 我</button>
+  <div class="nav-footer">no0boy 的搭档</div>
 </nav>
 
-<!-- 右侧 -->
 <main>
-  <div class="admin-bar" id="adminBar">
-    <span id="memToggle" onclick="toggleMemMode()">🧠 记忆：关</span>
-    <span onclick="navTo('memory')">📋 查看记忆</span>
-    <span onclick="navTo('training')">🎓 训练 Nobody</span>
-  </div>
-
-  <!-- 📌 Today —— 新默认首页 -->
-  <div class="panel active" id="panel-today">
-    <div class="content-panel">
-      <h2 id="todayGreeting">👋 你好。</h2>
-      <div class="desc" id="todayDate"></div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;">
-        <!-- 左侧 -->
-        <div>
-          <div class="item-card" style="margin-bottom:12px;">
-            <div style="color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px;">💡 今日建议</div>
-            <div id="todaySuggestions" style="font-size:11px;color:var(--dim);">加载中...</div>
-          </div>
-          <div class="item-card" style="margin-bottom:12px;">
-            <div style="color:var(--warn);font-size:12px;font-weight:600;margin-bottom:8px;">🎯 当前目标</div>
-            <div id="todayGoals" style="font-size:11px;color:var(--dim);">暂无目标</div>
-          </div>
-        </div>
-        <!-- 右侧 -->
-        <div>
-          <div class="item-card" style="margin-bottom:12px;">
-            <div style="color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px;">📚 最近学习</div>
-            <div id="todayRecent" style="font-size:11px;color:var(--dim);">暂无</div>
-          </div>
-          <div class="item-card">
-            <div style="color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px;">📈 最近动态</div>
-            <div id="todayTimeline" style="font-size:11px;color:var(--dim);">暂无</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- 💬 对话 -->
-  <div class="panel" id="panel-chat">
+  <div class="panel active" id="panel-chat">
     <div class="chat-header"><div class="dot"></div>Nobody 在线 · <span id="modeLabel" style="color:var(--dim)">游客</span></div>
     <div class="chat-msgs" id="msgs">
-      <div class="welcome"><div class="icon">👤</div><h2>Nobody 在线</h2><p>no0by 的安全搭档。问吧。</p></div>
+      <div class="welcome"><div class="icon">👤</div><h2>Nobody 在线</h2><p>你的安全搭档。问吧。</p></div>
+    </div>
+    <div class="quick-bar" id="quickBar" style="display:none">
+      <span class="qa-btn" id="qaMem" onclick="toggleMem()">🧠 记忆</span>
     </div>
     <div class="chat-input">
       <input id="q" placeholder="向 Nobody 提问..." onkeydown="if(event.key==='Enter')send()">
       <button onclick="send()">发送</button>
-      <button onclick="quickSave()" style="background:transparent;color:var(--dim);font-size:18px;padding:10px 8px;font-weight:normal;" title="快速记录">➕</button>
-    </div>
-    <div id="quickActions" style="padding:0 20px 8px;display:flex;gap:6px;flex-wrap:wrap;">
-      <span class="qa-btn" id="qaMem" onclick="toggleMemMode()" title="开启后对话存入长期记忆">🧠 记忆</span>
-      <span class="qa-btn" onclick="navTo('training')" title="主动教 Nobody 新知识">🎓 训练</span>
-      <span class="qa-btn" onclick="navTo('memory')" title="查看所有记忆">📋 查看</span>
-      <span class="qa-btn" onclick="navTo('knowledge')" title="管理知识库">📚 知识</span>
+      <button class="qsave" onclick="quickSave()" title="快速记录">➕</button>
     </div>
   </div>
 
-  <!-- 🧠 长期记忆 -->
-  <div class="panel" id="panel-memory">
+  <!-- 📅 时间线 -->
+  <div class="panel" id="panel-timeline">
     <div class="content-panel">
-      <h2>🧠 长期记忆</h2><div class="desc">Nobody 记住的关于你的一切</div>
-      <div class="search-box"><input type="text" id="memSearch" placeholder="搜索记忆..." oninput="loadMemory()"></div>
-      <div class="input-row">
-        <input type="text" id="memKey" placeholder="键 (如: name, goal, preference)">
-        <input type="text" id="memVal" placeholder="值 (如: no0by, OSCP备考)">
-        <button onclick="saveMem()">保存</button>
-      </div>
-      <div class="item-list" id="memList"><div class="empty-state">加载中...</div></div>
+      <h2>📅 成长轨迹</h2>
+      <div id="timelineContent"><div style="color:var(--dim);text-align:center;padding:40px;">加载中...</div></div>
     </div>
   </div>
 
-  <!-- 📚 知识库 -->
-  <div class="panel" id="panel-knowledge">
+  <!-- 👤 我 -->
+  <div class="panel" id="panel-me">
     <div class="content-panel">
-      <h2>📚 知识库</h2><div class="desc">知识树 · 按路径组织</div>
-      <div class="search-box"><input type="text" id="knowSearch" placeholder="语义搜索知识..." oninput="semSearch()"></div>
-      <div id="semResults" style="margin-bottom:12px;font-size:11px;"></div>
-      <div class="input-row">
-        <input type="text" id="knowPath" placeholder="路径: security/sqli/payload">
-        <input type="text" id="knowContent" placeholder="内容">
-        <button onclick="saveKnow()">保存</button>
+      <h2>👤 我的画像</h2>
+      <div class="profile-section">
+        <h3>身份</h3>
+        <div id="profileView"><div style="color:var(--dim)">加载中...</div></div>
+        <div class="edit-row">
+          <input id="proKey" placeholder="字段 (name/role/goals/level)">
+          <input id="proVal" placeholder="值">
+          <button onclick="saveProfile()">保存</button>
+        </div>
       </div>
-      <div class="item-list" id="knowTree"><div class="empty-state">加载中...</div></div>
-    </div>
-  </div>
-
-  <!-- 🎯 目标 -->
-  <div class="panel" id="panel-goals">
-    <div class="content-panel">
-      <h2>🎯 目标</h2><div class="desc">长期目标跟踪 · Nobody 帮你拆解</div>
-      <div class="input-row">
-        <input type="text" id="goalName" placeholder="目标名称">
-        <input type="text" id="goalProgress" placeholder="进度%" style="width:80px;">
-        <button onclick="saveGoal()">添加</button>
+      <div class="profile-section">
+        <h3>偏好</h3>
+        <div id="prefView"><div style="color:var(--dim)">加载中...</div></div>
+        <div class="edit-row">
+          <input id="prefKey" placeholder="字段 (language/depth/code_style/tone)">
+          <input id="prefVal" placeholder="值">
+          <button onclick="savePref()">保存</button>
+        </div>
       </div>
-      <div style="margin-bottom:12px;font-size:11px;color:var(--warn);" id="goalSuggestion"></div>
-      <div class="item-list" id="goalList"><div class="empty-state">暂无目标，添加你的第一个长期目标吧</div></div>
-    </div>
-  </div>
-
-  <!-- 🤖 Agents -->
-  <div class="panel" id="panel-agents">
-    <div class="content-panel">
-      <h2>🤖 Agents</h2><div class="desc">Nobody 的能力模块</div>
-      <div class="item-list" id="agentList"><div class="empty-state">加载中...</div></div>
-    </div>
-  </div>
-
-  <!-- 🎓 训练 -->
-  <div class="panel" id="panel-training">
-    <div class="content-panel">
-      <h2>🎓 训练 Nobody</h2><div class="desc">主动教 Nobody 你今天学了什么</div>
-      <div class="input-row">
-        <input type="text" id="trainInput" placeholder="今天学到了什么？如: SQL注入盲注技术...">
-        <button onclick="train()">提交</button>
-      </div>
-      <div style="margin-top:8px;font-size:12px;color:var(--dim)">
-        <label><input type="checkbox" id="trainMem" checked> 加入长期记忆</label>
-        <label style="margin-left:12px;"><input type="checkbox" id="trainKnow" checked> 加入知识库</label>
-      </div>
-      <div class="item-list" id="trainList" style="margin-top:16px;"><div class="empty-state">暂无训练记录</div></div>
     </div>
   </div>
 </main>
 
 <script>
-// ====== 导航 ======
 const ADMIN_KEY = localStorage.getItem('admin_key') || '';
 const IS_ADMIN = ADMIN_KEY.length >= 6;
 let MEM_MODE = false;
+
 if (IS_ADMIN) {
   document.getElementById('modeLabel').textContent = 'Master';
   document.getElementById('modeLabel').style.color = 'var(--warn)';
-  document.getElementById('adminBar').style.display = 'flex';
-  document.getElementById('quickActions').style.display = 'flex';
-} else {
-  document.getElementById('quickActions').style.display = 'none';
+  document.getElementById('quickBar').style.display = 'flex';
 }
 
+// ====== 导航 ======
 document.querySelectorAll('.nav-item').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    const p = btn.dataset.panel;
     document.querySelectorAll('.panel').forEach(pn => pn.classList.remove('active'));
-    document.getElementById('panel-' + p).classList.add('active');
-    if (p === 'memory') loadMemory();
-    if (p === 'knowledge') loadKnowledge();
-    if (p === 'agents') loadAgents();
+    document.getElementById('panel-' + btn.dataset.panel).classList.add('active');
+    if (btn.dataset.panel === 'timeline') loadTimeline();
+    if (btn.dataset.panel === 'me') loadMe();
   });
 });
 
-function navTo(p) {
-  document.querySelector(`[data-panel="${p}"]`).click();
+// ====== 记忆开关 ======
+function toggleMem() {
+  MEM_MODE = !MEM_MODE;
+  const el = document.getElementById('qaMem');
+  el.classList.toggle('on', MEM_MODE);
+  el.textContent = MEM_MODE ? '🧠 开' : '🧠 记忆';
 }
 
-// ====== 记忆开关 ======
-function toggleMemMode() {
-  MEM_MODE = !MEM_MODE;
-  const el = document.getElementById('memToggle');
-  if (el) { el.textContent = MEM_MODE ? '🧠 记忆：开' : '🧠 记忆：关'; el.style.color = MEM_MODE ? 'var(--warn)' : ''; }
-  const qa = document.getElementById('qaMem');
-  if (qa) { qa.classList.toggle('on', MEM_MODE); qa.textContent = MEM_MODE ? '🧠 记忆中' : '🧠 记忆'; }
+// ====== 快速记录 ======
+async function quickSave() {
+  if (!IS_ADMIN) { alert('仅 Master 可用'); return; }
+  const text = prompt('📝 记下（学到了什么 / 想记住的 / 想法）：');
+  if (!text || !text.trim()) return;
+  try {
+    await fetch('/api/journal/learn', {
+      method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},
+      body:JSON.stringify({summary:text.trim(),detail:'',tags:[],type:'learning'})
+    });
+  } catch(e) { alert('保存失败'); }
 }
 
 // ====== 聊天 ======
@@ -282,6 +190,8 @@ async function send() {
           if (p.type === 'agent') {
             const sev = {P0:'#ff0000',P1:'#ff8800',P2:'#ffdd00',INFO:'var(--accent)'};
             tag.innerHTML = `${p.emoji} ${p.name} · <span style="color:${sev[p.severity]||'var(--accent)'}">${p.severity}</span>`;
+          } else if (p.type === 'skills' && p.skills?.length) {
+            tag.innerHTML += ` · ${p.skills.map(s=>s.display||s.name).join(', ')}`;
           } else if (p.type === 'chunk') { full += p.text; bubble.textContent = full; }
         } catch(e) {}
       }
@@ -289,7 +199,7 @@ async function send() {
     }
   } catch(e) { bubble.textContent = '连接失败'; tag.textContent = '离线'; }
 
-  // 记忆模式：自动保存到 Journal
+  // 记忆模式：自动存为 Journal
   if (IS_ADMIN && MEM_MODE && full && text.length > 20) {
     try {
       await fetch('/api/journal/entry', {
@@ -301,222 +211,119 @@ async function send() {
 }
 
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
-function logout() { localStorage.removeItem('admin_key'); window.location.href = 'login.html'; }
 
-// ====== 快速记录 ======
-async function quickSave() {
-  if (!IS_ADMIN) { alert('仅 Master 可用'); return; }
-  const text = prompt('📝 记录（学到的 / 想记住的 / 想法）：');
-  if (!text || !text.trim()) return;
+// ====== 时间线 ======
+async function loadTimeline() {
+  if (!IS_ADMIN) { document.getElementById('timelineContent').innerHTML = '<div style="text-align:center;padding:40px;color:var(--dim)">登录 Master 后查看</div>'; return; }
   try {
-    await fetch('/api/journal/learn', {
-      method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},
-      body:JSON.stringify({summary:text.trim(),detail:'',tags:[],type:'learning'})
-    });
-    // 悄悄刷新 Today
-    try { loadToday(); } catch(e) {}
-  } catch(e) { alert('保存失败'); }
-}
+    const [tlRes, memRes] = await Promise.all([
+      fetch('/api/journal/timeline?days=60', {headers:{'X-Admin':ADMIN_KEY}}),
+      fetch('/api/journal/memories?limit=10', {headers:{'X-Admin':ADMIN_KEY}})
+    ]);
+    const tl = await tlRes.json();
+    const mem = await memRes.json();
 
-// ====== 记忆管理 ======
-async function loadMemory() {
-  if (!IS_ADMIN) return;
-  const q = (document.getElementById('memSearch')?.value || '').toLowerCase();
-  try {
-    const r = await fetch('/api/chat/welcome', {headers:{'X-Admin':ADMIN_KEY}});
-    const d = await r.json();
-    const items = d.data?.core_memory || {};
-    const list = Object.entries(items).filter(([k]) => !q || k.toLowerCase().includes(q) || JSON.stringify(items[k]).toLowerCase().includes(q));
-    document.getElementById('memList').innerHTML = list.length ? list.map(([k,v]) => `
-      <div class="item-card">
-        <div class="item-key">${esc(k)}</div>
-        <div class="item-val">${esc(JSON.stringify(v).slice(0,200))}</div>
-        <div class="item-actions"><button onclick="delMem('${esc(k)}')">删除</button></div>
-      </div>`).join('') : '<div class="empty-state">暂无记忆</div>';
-  } catch(e) {}
-}
+    let html = '';
+    const days = tl.data || [];
 
-async function saveMem() {
-  const k = document.getElementById('memKey').value.trim();
-  const v = document.getElementById('memVal').value.trim();
-  if (!k || !v) return;
-  try {
-    await fetch('/api/chat/remember', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:`记住 ${k}: ${v}`,stream:false})});
-    document.getElementById('memKey').value = ''; document.getElementById('memVal').value = '';
-    loadMemory();
-  } catch(e) {}
-}
-
-// ====== 知识库管理 ======
-async function loadKnowledge() {
-  try {
-    const r = await fetch('/api/knowledge/tree', {headers: IS_ADMIN ? {'X-Admin':ADMIN_KEY} : {}});
-    const d = await r.json();
-    if (d.code !== 0) return;
-    document.getElementById('knowTree').innerHTML = renderTree(d.data, 0) || '<div class="empty-state">知识库为空。添加格式: 路径: 内容</div>';
-  } catch(e) {}
-}
-
-function renderTree(node, depth) {
-  if (!node || Object.keys(node).length === 0) return '';
-  return Object.entries(node).map(([k, v]) => {
-    const indent = '&nbsp;&nbsp;'.repeat(depth);
-    const isFolder = typeof v === 'object' && v !== null;
-    if (isFolder) {
-      return `<details open style="margin-left:${depth*12}px"><summary style="color:var(--accent);cursor:pointer;font-size:12px;">📁 ${esc(k)}</summary>${renderTree(v, depth+1)}</details>`;
-    }
-    return `<div style="margin-left:${depth*12}px;font-size:11px;padding:4px 0;color:var(--dim);">📄 ${esc(k)}: <span style="color:var(--text)">${esc(String(v).slice(0,100))}</span></div>`;
-  }).join('');
-}
-
-async function semSearch() {
-  const q = document.getElementById('knowSearch').value.trim();
-  if (!q) { loadKnowledge(); return; }
-  try {
-    const r = await fetch('/api/chat/memory/semantic?q=' + encodeURIComponent(q), {headers: IS_ADMIN ? {'X-Admin':ADMIN_KEY} : {}});
-    const d = await r.json();
-    document.getElementById('semResults').innerHTML = (d.data || []).length ? '<div style="color:var(--accent);margin-bottom:8px;">🔍 语义搜索结果:</div>' + d.data.map(s => `<div class="item-card" style="margin-bottom:4px;"><div class="item-val">${esc(s.slice(0,200))}</div></div>`).join('') : '';
-  } catch(e) {}
-}
-
-async function saveKnow() {
-  const p = document.getElementById('knowPath').value.trim();
-  const c = document.getElementById('knowContent').value.trim();
-  if (!p || !c) return;
-  try {
-    await fetch('/api/knowledge/add', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:`${p}: ${c}`,stream:false})});
-    document.getElementById('knowPath').value = ''; document.getElementById('knowContent').value = '';
-    loadKnowledge();
-  } catch(e) {}
-}
-
-// ====== Agents / 技能树 ======
-async function loadAgents() {
-  try {
-    const r = await fetch('/api/chat/skills');
-    const d = await r.json();
-    const skills = d.data || [];
-    document.getElementById('agentList').innerHTML = `
-      <div class="item-card" style="border-color:var(--accent);margin-bottom:12px;">
-        <div class="item-key">🧠 Nobody（主人格）</div>
-        <div class="item-val">固定人格 · Planner调度 · ${skills.length} 个技能模块</div>
-      </div>
-      ${skills.map(s => `
-        <div class="item-card" style="margin-bottom:6px;">
-          <div class="item-key">${s.display || s.id} <span style="font-size:10px;color:var(--dim);">v${s.version}</span></div>
-          <div class="item-val">
-            ${s.triggers.join(', ')}
-            <span style="float:right;font-size:10px;color:${s.has_handler?'var(--accent)':'var(--dim)'};">${s.has_handler?'✅ handler':'⚠️ 未配置'}</span>
-          </div>
-        </div>
-      `).join('')}
-      <div class="item-card" style="margin-top:12px;border-style:dashed;color:var(--dim);text-align:center;font-size:11px;">
-        新增 Skill → 在 skills/ 下创建目录 + skill.json + handler.py
-      </div>
-    `;
-  } catch(e) {}
-}
-
-// ====== 训练 ======
-async function train() {
-  const v = document.getElementById('trainInput').value.trim();
-  if (!v) return;
-  const addMem = document.getElementById('trainMem').checked;
-  const addKnow = document.getElementById('trainKnow').checked;
-
-  try {
-    if (addMem) {
-      await fetch('/api/chat/remember', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:'记住 学到了: '+v,stream:false})});
-    }
-    if (addKnow) {
-      await fetch('/api/chat/remember', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:'知识 训练: '+v,stream:false})});
-    }
-    document.getElementById('trainInput').value = '';
-    document.getElementById('trainList').innerHTML = '<div class="item-card"><div class="item-key">✅ 已训练</div><div class="item-val">'+esc(v.slice(0,200))+'</div></div>' + document.getElementById('trainList').innerHTML;
-  } catch(e) {}
-}
-
-// ====== Goals ======
-async function loadGoals() {
-  try {
-    const r = await fetch('/api/chat/goals', {headers:{'X-Admin':ADMIN_KEY}});
-    const d = await r.json();
-    if (d.code !== 0) return;
-    const items = d.data || [];
-    document.getElementById('goalList').innerHTML = items.length ? items.map(g => `
-      <div class="item-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div>
-            <div class="item-key">${esc(g.id)}</div>
-            <div style="margin-top:4px;background:var(--border);border-radius:4px;height:6px;width:200px;">
-              <div style="width:${g.progress||0}%;height:100%;background:var(--accent);border-radius:4px;"></div>
-            </div>
-            <div class="item-time">${g.progress||0}%</div>
-          </div>
-          <div class="item-actions">
-            <button onclick="updateGoal('${esc(g.id)}',prompt('新进度%',${g.progress||0}))">更新</button>
-            <button onclick="delGoal('${esc(g.id)}')">删除</button>
-          </div>
-        </div>
-      </div>
-    `).join('') : '<div class="empty-state">暂无目标</div>';
-
-    // 建议
-    const low = items.filter(g => (g.progress||0) < 50);
-    if (low.length) document.getElementById('goalSuggestion').textContent = `💡 有 ${low.length} 个目标进度低于50%，建议重点推进`;
-  } catch(e) {}
-}
-
-async function saveGoal() {
-  const n = document.getElementById('goalName').value.trim();
-  const p = document.getElementById('goalProgress').value.trim() || '0';
-  if (!n) return;
-  await fetch('/api/chat/goals', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:`${n}:${p}`,stream:false})});
-  document.getElementById('goalName').value = '';
-  document.getElementById('goalProgress').value = '';
-  loadGoals();
-}
-
-async function updateGoal(id, progress) {
-  if (!progress) return;
-  await fetch('/api/chat/goals', {method:'POST',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},body:JSON.stringify({question:`${id}:${progress}`,stream:false})});
-  loadGoals();
-}
-
-async function delGoal(id) {
-  await fetch('/api/chat/goals?q='+encodeURIComponent(id), {method:'DELETE',headers:{'X-Admin':ADMIN_KEY}});
-  loadGoals();
-}
-
-document.querySelectorAll('[data-panel="goals"]').forEach(b => b.addEventListener('click', loadGoals));
-
-// ====== Today ======
-async function loadToday() {
-  try {
-    const h = IS_ADMIN ? {'X-Admin':ADMIN_KEY} : {};
-    const r = await fetch('/api/conversation/today', {headers: h});
-    const d = await r.json();
-    if (d.code !== 0) return;
-    const t = d.data;
-    document.getElementById('todayGreeting').textContent = t.greeting;
-    document.getElementById('todayDate').textContent = t.date;
-    document.getElementById('todaySuggestions').innerHTML = (t.suggestions||[]).map(s => `<div style="padding:4px 0;">• ${esc(s)}</div>`).join('') || '暂无建议';
-    document.getElementById('todayGoals').innerHTML = (t.goals||[]).length ? (t.goals||[]).map(g => `<div style="padding:2px 0;">🎯 ${esc(g)} →</div>`).join('') : '设定目标后展示';
-    document.getElementById('todayRecent').innerHTML = (t.recent_topics||[]).length ? (t.recent_topics||[]).map(r => `<span style="display:inline-block;margin:2px;padding:2px 8px;background:var(--surface);border-radius:10px;font-size:10px;">${esc(r)}</span>`).join('') : '开始学习吧';
-    var tlhtml = '';
-    (t.timeline||[]).forEach(function(day) {
-      tlhtml += '<div style="padding:3px 0;font-size:10px;color:var(--accent);">' + esc(day.date) + '</div>';
-      (day.events||[]).forEach(function(ev) {
-        tlhtml += '<div style="padding:2px 0 2px 12px;font-size:10px;">· ' + esc(ev) + '</div>';
+    if (days.length === 0) {
+      html += '<div style="text-align:center;padding:40px;color:var(--dim);">还没有记录。<br><br>在对话中点 ➕ 记下你学到的。</div>';
+    } else {
+      days.forEach(day => {
+        html += `<div class="tl-day"><div class="tl-date">${esc(day.date)}</div>`;
+        (day.events||[]).forEach(ev => {
+          html += `<div class="tl-item">${esc(ev)}</div>`;
+        });
+        html += '</div>';
       });
-    });
-    document.getElementById('todayTimeline').innerHTML = tlhtml || '还没有记录';
+    }
+
+    // 记忆
+    const mems = mem.data || [];
+    if (mems.length > 0) {
+      html += '<h2 style="margin-top:24px;">🧠 长期记忆</h2>';
+      mems.forEach(m => {
+        html += `<div class="tl-item"><span class="tl-type">${esc(m.type)}</span> ${esc(m.summary)}</div>`;
+      });
+    }
+
+    document.getElementById('timelineContent').innerHTML = html;
+  } catch(e) {
+    document.getElementById('timelineContent').innerHTML = '<div style="color:var(--red)">加载失败</div>';
+  }
+}
+
+// ====== 我 ======
+async function loadMe() {
+  if (!IS_ADMIN) { return; }
+  try {
+    const [proRes, prefRes] = await Promise.all([
+      fetch('/api/profile', {headers:{'X-Admin':ADMIN_KEY}}),
+      fetch('/api/profile/preferences', {headers:{'X-Admin':ADMIN_KEY}})
+    ]);
+    const pro = await proRes.json();
+    const pref = await prefRes.json();
+
+    const profile = pro.data?.profile || {};
+    document.getElementById('profileView').innerHTML = Object.keys(profile).length
+      ? Object.entries(profile).map(([k,v]) =>
+          `<div class="profile-row"><span class="key">${esc(k)}</span><span class="val">${esc(typeof v==='object'?JSON.stringify(v):String(v))}</span></div>`
+        ).join('')
+      : '<div style="color:var(--dim);font-size:12px;">尚未设置。在上方填写你的信息。</div>';
+
+    const prefs = pref.data?.preferences || {};
+    document.getElementById('prefView').innerHTML = Object.keys(prefs).length
+      ? Object.entries(prefs).map(([k,v]) =>
+          `<div class="profile-row"><span class="key">${esc(k)}</span><span class="val">${esc(String(v))}</span></div>`
+        ).join('')
+      : '<div style="color:var(--dim);font-size:12px;">使用默认偏好。</div>';
+
   } catch(e) {}
 }
-loadToday();
 
-// 导航切换时刷新 Today
-document.querySelectorAll('[data-panel="today"]').forEach(b => b.addEventListener('click', loadToday));
+async function saveProfile() {
+  const k = document.getElementById('proKey').value.trim();
+  const v = document.getElementById('proVal').value.trim();
+  if (!k||!v) return;
+  await fetch('/api/profile', {
+    method:'PUT',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},
+    body:JSON.stringify({key:k,value:v})
+  });
+  document.getElementById('proKey').value = '';
+  document.getElementById('proVal').value = '';
+  loadMe();
+}
+
+async function savePref() {
+  const k = document.getElementById('prefKey').value.trim();
+  const v = document.getElementById('prefVal').value.trim();
+  if (!k||!v) return;
+  await fetch('/api/profile/preferences', {
+    method:'PUT',headers:{'Content-Type':'application/json','X-Admin':ADMIN_KEY},
+    body:JSON.stringify({key:k,value:v})
+  });
+  document.getElementById('prefKey').value = '';
+  document.getElementById('prefVal').value = '';
+  loadMe();
+}
+
+// ====== 初始加载 ======
+if (IS_ADMIN) {
+  fetch('/api/conversation/welcome', {headers:{'X-Admin':ADMIN_KEY}})
+    .then(r => r.json()).then(d => {
+      if (d.data?.profile?.name) {
+        document.getElementById('navGreet').textContent = d.data.profile.name;
+      }
+    }).catch(()=>{});
+}
+
+// 游客也能看到导航切换
+document.querySelectorAll('[data-panel="timeline"]').forEach(b => {
+  b.addEventListener('click', loadTimeline);
+});
+document.querySelectorAll('[data-panel="me"]').forEach(b => {
+  b.addEventListener('click', loadMe);
+});
 </script>
 </body>
 </html>
