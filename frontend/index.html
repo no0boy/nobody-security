@@ -74,11 +74,12 @@ main{flex:1;display:flex;flex-direction:column;min-width:0}
 <!-- 左侧导航 -->
 <nav>
   <div class="nav-brand"><h1>Nobody</h1><div class="sub">Security Partner v2.0</div></div>
-  <button class="nav-item active" data-panel="chat"><span>💬</span> 对话</button>
+  <button class="nav-item active" data-panel="today"><span>📌</span> Today</button>
+  <button class="nav-item" data-panel="chat"><span>💬</span> 对话</button>
   <button class="nav-item" data-panel="memory"><span>🧠</span> 长期记忆</button>
   <button class="nav-item" data-panel="knowledge"><span>📚</span> 知识库</button>
-  <button class="nav-item" data-panel="agents"><span>🤖</span> Agents</button>
   <button class="nav-item" data-panel="training"><span>🎓</span> 训练</button>
+  <button class="nav-item" data-panel="agents"><span>🤖</span> Agents</button>
   <div class="nav-footer">
     <div>固定人格 · 长期记忆</div>
     <div>no0by 的安全搭档</div>
@@ -93,8 +94,41 @@ main{flex:1;display:flex;flex-direction:column;min-width:0}
     <span onclick="navTo('training')">🎓 训练 Nobody</span>
   </div>
 
+  <!-- 📌 Today —— 新默认首页 -->
+  <div class="panel active" id="panel-today">
+    <div class="content-panel">
+      <h2 id="todayGreeting">👋 你好。</h2>
+      <div class="desc" id="todayDate"></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;">
+        <!-- 左侧 -->
+        <div>
+          <div class="item-card" style="margin-bottom:12px;">
+            <div style="color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px;">💡 今日建议</div>
+            <div id="todaySuggestions" style="font-size:11px;color:var(--dim);">加载中...</div>
+          </div>
+          <div class="item-card" style="margin-bottom:12px;">
+            <div style="color:var(--warn);font-size:12px;font-weight:600;margin-bottom:8px;">🎯 当前目标</div>
+            <div id="todayGoals" style="font-size:11px;color:var(--dim);">暂无目标</div>
+          </div>
+        </div>
+        <!-- 右侧 -->
+        <div>
+          <div class="item-card" style="margin-bottom:12px;">
+            <div style="color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px;">📚 最近学习</div>
+            <div id="todayRecent" style="font-size:11px;color:var(--dim);">暂无</div>
+          </div>
+          <div class="item-card">
+            <div style="color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px;">📈 最近动态</div>
+            <div id="todayTimeline" style="font-size:11px;color:var(--dim);">暂无</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 💬 对话 -->
-  <div class="panel active" id="panel-chat">
+  <div class="panel" id="panel-chat">
     <div class="chat-header"><div class="dot"></div>Nobody 在线 · <span id="modeLabel" style="color:var(--dim)">游客</span></div>
     <div class="chat-msgs" id="msgs">
       <div class="welcome"><div class="icon">👤</div><h2>Nobody 在线</h2><p>no0by 的安全搭档。问吧。</p></div>
@@ -355,8 +389,26 @@ async function train() {
   } catch(e) {}
 }
 
-// 初始加载
-if (IS_ADMIN) { /* 预加载记忆列表供后续使用 */ }
+// ====== Today ======
+async function loadToday() {
+  try {
+    const h = IS_ADMIN ? {'X-Admin':ADMIN_KEY} : {};
+    const r = await fetch('/api/chat/today', {headers: h});
+    const d = await r.json();
+    if (d.code !== 0) return;
+    const t = d.data;
+    document.getElementById('todayGreeting').textContent = t.greeting;
+    document.getElementById('todayDate').textContent = t.date;
+    document.getElementById('todaySuggestions').innerHTML = (t.suggestions||[]).map(s => `<div style="padding:4px 0;">• ${esc(s)}</div>`).join('') || '暂无建议';
+    document.getElementById('todayGoals').innerHTML = (t.goals||[]).length ? (t.goals||[]).map(g => `<div style="padding:2px 0;">🎯 ${esc(g)}</div>`).join('') : '设定目标后展示';
+    document.getElementById('todayRecent').innerHTML = (t.recent_topics||[]).length ? (t.recent_topics||[]).map(r => `<span style="display:inline-block;margin:2px;padding:2px 8px;background:var(--surface);border-radius:10px;font-size:10px;">${esc(r)}</span>`).join('') : '开始学习吧';
+    document.getElementById('todayTimeline').innerHTML = (t.timeline||[]).map(l => `<div style="padding:3px 0;font-size:10px;">${l.date} · ${esc(l.event)}</div>`).join('') || '还没有记录';
+  } catch(e) {}
+}
+loadToday();
+
+// 导航切换时刷新 Today
+document.querySelectorAll('[data-panel="today"]').forEach(b => b.addEventListener('click', loadToday));
 </script>
 </body>
 </html>

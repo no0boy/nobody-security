@@ -57,6 +57,49 @@ def planner(x_admin: Optional[str] = Header(None)):
         return {"code": 0, "data": {"suggestions": ["登录管理员后可查看学习规划。"]}}
     return {"code": 0, "data": planner_check("nobody")}
 
+
+@router.get("/today")
+def today(x_admin: Optional[str] = Header(None)):
+    """Today 页面数据：问候 + 建议 + 目标 + 时间线"""
+    from datetime import datetime
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    hour = datetime.now().hour
+
+    greeting = "早上好" if hour < 12 else "下午好" if hour < 18 else "晚上好"
+
+    is_admin = _verify_admin(x_admin)
+    suggestions = []
+    goals = []
+    recent = []
+    timeline = []
+
+    if is_admin:
+        p = planner_check("nobody")
+        suggestions = p.get("suggestions", [])[:3]
+        recent = p.get("recent_topics", [])[:5]
+        goals = p.get("goals", [])[:3]
+
+        core = Memory.core_get() or {}
+        timeline = sorted(
+            [(k, v) for k, v in core.items() if isinstance(v, dict) and v.get("time")],
+            key=lambda x: str(x[1].get("time", "")), reverse=True
+        )[:5]
+        timeline = [{"date": str(v.get("time", ""))[:10], "event": k, "detail": str(v.get("content", ""))[:100]} for k, v in timeline]
+
+    profile = {}
+    if is_admin:
+        profile = Memory.get("nobody", "profile", "base") or {}
+
+    return {"code": 0, "data": {
+        "greeting": f"{greeting}，{profile.get('name', 'no0boy')}。",
+        "date": today_str,
+        "suggestions": suggestions or ["开始记录今天的学习吧！"],
+        "recent_topics": recent,
+        "goals": goals,
+        "timeline": timeline,
+        "is_admin": is_admin,
+    }}
+
 @router.post("/remember")
 def remember(req: AskReq, x_admin: Optional[str] = Header(None)):
     """Master 主动存储记忆 —— 限流保护"""
