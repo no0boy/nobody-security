@@ -7,7 +7,13 @@
 
 import jieba
 from rank_bm25 import BM25Okapi
-import config
+import os
+
+# Nobody 配置
+SIMILARITY_THRESHOLD = 0.3
+BM25_TOP_K = 10
+RRF_K = 60
+FINAL_TOP_K = 5
 
 # 延迟导入，避免循环依赖
 _collection = None
@@ -15,8 +21,10 @@ _collection = None
 def _get_collection():
     global _collection
     if _collection is None:
-        from services.rag_service import collection
-        _collection = collection
+        import chromadb
+        persist_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "chroma_data")
+        client = chromadb.PersistentClient(path=persist_dir)
+        _collection = client.get_or_create_collection(name="nobody_knowledge")
     return _collection
 
 

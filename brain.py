@@ -224,46 +224,54 @@ def _get_tool_fn(name: str):
 # ========== RAG 检索 ==========
 
 def _rag_search(question: str) -> str:
-    """从知识库检索相关内容"""
-    import chromadb
-    from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-    persist_dir = os.path.join(os.path.dirname(__file__), "chroma_data")
-    client = chromadb.PersistentClient(path=persist_dir)
-    collection = client.get_or_create_collection(name="nobody_knowledge")
-
+    """语义检索：ChromaDB 向量相似度 + BM25 关键词融合"""
     try:
-        # 简单关键词检索（v1.0 不用 embedding API，纯关键词）
-        results = collection.get(include=["documents", "metadatas"])
-        if not results["documents"]:
-            return ""
+        from services.hybrid_search import build_index, hybrid_search
 
-        keywords = question.lower().split()
-        matches = []
-        for doc in results["documents"]:
-            score = sum(1 for kw in keywords if kw in doc.lower())
-            if score > 0:
-                matches.append((score, doc))
-
-        matches.sort(key=lambda x: x[0], reverse=True)
-        return "\n---\n".join([d[:500] for _, d in matches[:3]])
+        build_index()
+        results = hybrid_search(question, top_k=5)
+        if results:
+            return "\n---\n".join([r.get("content", "")[:500] for r in results])
     except Exception:
-        return ""
+        pass
+
+    # 降级：ChromaDB 原生语义搜索
+    try:
+        import chromadb
+        client = chromadb.PersistentClient(path=os.path.join(os.path.dirname(__file__), "chroma_data"))
+        collection = client.get_or_create_collection(name="nobody_knowledge")
+        emb = _embed_text(question)
+        results = collection.query(query_embeddings=[emb], n_results=3, include=["documents"])
+        if results["documents"] and results["documents"][0]:
+            return "\n---\n".join([d[:500] for d in results["documents"][0]])
+    except Exception:
+        pass
+    return ""
 
 # ========== 知识库初始化 ==========
 
+def _embed_text(text: str) -> list:
+    """文本向量化 — 用 ChromaDB 内置模型"""
+    import chromadb.utils.embedding_functions as ef
+    fn = ef.DefaultEmbeddingFunction()
+    return fn([text])[0]
+
+
 def init_knowledge():
-    """启动时检查知识库，空则导入种子文档 + 公共知识"""
+    """启动时加载知识库 — 切片→向量化→入库"""
     import chromadb
 
     persist_dir = os.path.join(os.path.dirname(__file__), "chroma_data")
     client = chromadb.PersistentClient(path=persist_dir)
-    collection = client.get_or_create_collection(name="nobody_knowledge")
+    collection = client.get_or_create_collection(
+        name="nobody_knowledge",
+        metadata={"hnsw:space": "cosine"}
+    )
 
     if collection.count() > 0:
         return
 
-    print("[Nobody] 知识库为空，导入种子文档 + 公共知识...")
+    print("[Nobody] 知识库为空，开始切片→向量化→入库...")
     count = 0
 
     for subdir in ["seeds", "public"]:
@@ -282,15 +290,23 @@ def init_knowledge():
                     continue
                 rel = os.path.relpath(fp, os.path.join(os.path.dirname(__file__), "knowledge"))
                 is_public = subdir == "public"
+
+                # 切片 + 向量化
                 chunks = [text[i:i+500] for i in range(0, len(text), 500)]
                 for j, chunk in enumerate(chunks):
-                    collection.add(
-                        ids=[f"{rel}_chunk_{j}"],
-                        documents=[chunk],
-                        metadatas=[{"source": rel, "chunk": j, "public": is_public}]
-                    )
-                    count += 1
-    print(f"[Nobody] 已导入 {count} 个知识片段（含公共知识层）")
+                    try:
+                        emb = _embed_text(chunk)
+                        collection.add(
+                            ids=[f"{rel}_chunk_{j}"],
+                            embeddings=[emb],
+                            documents=[chunk],
+                            metadatas=[{"source": rel, "chunk": j, "public": is_public}]
+                        )
+                        count += 1
+                    except Exception as e:
+                        print(f"  向量化失败 {rel} chunk {j}: {e}")
+
+    print(f"[Nobody] 已入库 {count} 个向量化知识片段")
 
 # ========== 核心问答 ==========
 
