@@ -244,7 +244,8 @@ async function loadTimeline() {
       days.forEach(day => {
         html += `<div class="tl-day"><div class="tl-date">${esc(day.date)}</div>`;
         (day.events||[]).forEach(ev => {
-          html += `<div class="tl-item">${esc(ev)}</div>`;
+          var txt = typeof ev === 'object' ? (ev.summary || ev.detail || '') : ev;
+          html += '<div class="tl-item">' + esc(txt) + '</div>';
         });
         html += '</div>';
       });
