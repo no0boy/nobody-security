@@ -14,11 +14,15 @@ from uuid import uuid4
 from typing import Optional
 from store.database import Database
 
-# 数据库路径：与现有 memory_core.db 共存，后续统一迁移
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "data", "nobody.db"
-)
+# 数据库路径：HF Space 用持久化 /data，本地用项目 data/
+_HF_PERSIST = "/data"
+if os.path.exists(_HF_PERSIST):
+    DB_PATH = os.path.join(_HF_PERSIST, "nobody.db")
+else:
+    DB_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "data", "nobody.db"
+    )
 
 _db: Optional[Database] = None
 
