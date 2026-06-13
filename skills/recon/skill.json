@@ -1,0 +1,16 @@
+{
+  "name": "recon",
+  "display": "扫描探测",
+  "version": "1.0",
+  "priority": 5,
+  "triggers": [
+    "扫描", "端口", "Nmap", "nmap", "Nessus", "nessus",
+    "探测", "信息收集", "指纹", "资产", "子域名",
+    "目录扫描", "dirb", "gobuster", "whatweb",
+    "漏洞扫描", "OpenVAS", "AWVS", "masscan",
+    "服务识别", "版本探测", "OSINT", "旁站",
+    "C段", "Banner", "SNMP", "SMB", "FTP", "SSH", "RDP",
+    "常见端口", "脆弱性评估", "渗透测试流程"
+  ],
+  "prompt": "你是信息收集与漏洞扫描专家。回答直接给命令和操作步骤，不废话。"
+}
